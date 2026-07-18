@@ -23,17 +23,17 @@ export default function DashboardPage() {
     medical: [
       ['Medicines', summary?.products],
       ['Low Stock', summary?.low_stock],
+      ['Expiry', summary?.expiry ?? 0],
       ['Suppliers', summary?.suppliers],
-      ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : '' ],
     ],
     education: [
-      ['Students', summary?.customers],
-      ['Teachers', summary?.employees],
-      ['Courses', summary?.products],
+      ['Students', summary?.students ?? 0],
+      ['Teachers', summary?.teachers ?? 0],
+      ['Courses', summary?.courses ?? 0],
       ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : '' ],
     ],
     restaurant: [
-      ['Items', summary?.products],
+      ['Orders', summary?.orders ?? 0],
       ['Customers', summary?.customers],
       ['Low Stock', summary?.low_stock],
       ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : '' ],

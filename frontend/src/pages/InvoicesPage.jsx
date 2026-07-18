@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, Card, CardContent, Grid, MenuItem, Select, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Chip, Grid, MenuItem, Select, Stack, TextField, Typography } from '@mui/material'
 import { Link } from 'react-router-dom'
 import api from '../lib/auth'
 import AppLayout from '../components/AppLayout'
@@ -19,6 +19,7 @@ export default function InvoicesPage() {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const loadData = () => {
     setLoading(true)
@@ -35,6 +36,28 @@ export default function InvoicesPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  const handleExport = async () => {
+    setExporting(true)
+    setError('')
+    setMessage('')
+    try {
+      const response = await api.get('/invoices/export_csv/', { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', 'invoices.csv')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      setMessage('Invoices exported successfully.')
+    } catch {
+      setError('Unable to export invoices.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -57,7 +80,9 @@ export default function InvoicesPage() {
       setForm(initialInvoiceForm)
       setMessage('Invoice created successfully.')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Unable to create invoice.')
+      const responseData = err.response?.data
+      const message = responseData?.detail || responseData?.non_field_errors?.[0] || (typeof responseData === 'string' ? responseData : 'Unable to create invoice.')
+      setError(message)
     } finally {
       setSaving(false)
     }
@@ -65,22 +90,22 @@ export default function InvoicesPage() {
 
   return (
     <AppLayout>
-      <Box sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-          <div>
-            <Typography variant="h4" gutterBottom>
-              Invoices
-            </Typography>
-            <Typography color="text.secondary">
-              Create and review invoices for your business.
-            </Typography>
-          </div>
-          <Button component={Link} to="/dashboard" variant="outlined">
-            Back to dashboard
-          </Button>
-        </Box>
+      <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, mb: 3 }}>
+          <Box>
+            <Typography variant="overline" color="primary" sx={{ letterSpacing: 2, fontWeight: 700 }}>INVOICE WORKFLOW</Typography>
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>Invoices</Typography>
+            <Typography color="text.secondary">Create and review invoices with a clearer, more focused experience.</Typography>
+          </Box>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+            <Button variant="outlined" onClick={handleExport} disabled={exporting || loading}>
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
+            <Button component={Link} to="/dashboard" variant="outlined">Back to dashboard</Button>
+          </Stack>
+        </Stack>
 
-        <Card sx={{ mb: 3 }}>
+        <Card sx={{ mb: 3, background: 'linear-gradient(135deg, rgba(79,70,229,0.06) 0%, rgba(255,255,255,1) 100%)' }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               New invoice
@@ -138,24 +163,32 @@ export default function InvoicesPage() {
         </Card>
 
         {loading ? (
-          <Typography>Loading invoices…</Typography>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary">Loading invoices…</Typography>
+            </CardContent>
+          </Card>
         ) : invoices.length === 0 ? (
-          <Typography>No invoices found yet.</Typography>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary">No invoices found yet.</Typography>
+            </CardContent>
+          </Card>
         ) : (
           <Grid container spacing={2}>
             {invoices.map((invoice) => (
               <Grid item xs={12} sm={6} md={4} key={invoice.id}>
-                <Card>
+                <Card sx={{ height: '100%' }}>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Invoice #{invoice.id}
-                    </Typography>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                      <Typography variant="h6">Invoice #{invoice.id}</Typography>
+                      <Chip label={invoice.status || 'Draft'} color={invoice.status === 'confirmed' ? 'success' : 'default'} size="small" />
+                    </Stack>
                     <Typography color="text.secondary" sx={{ mb: 1 }}>
                       Customer: {invoice.customer?.name || 'Unknown'}
                     </Typography>
-                    <Typography>Status: {invoice.status}</Typography>
-                    <Typography>Total: ${Number(invoice.total).toFixed(2)}</Typography>
-                    <Typography>Created: {new Date(invoice.created_at).toLocaleDateString()}</Typography>
+                    <Typography variant="body2">Total: ${Number(invoice.total).toFixed(2)}</Typography>
+                    <Typography variant="body2">Created: {new Date(invoice.created_at).toLocaleDateString()}</Typography>
                   </CardContent>
                 </Card>
               </Grid>

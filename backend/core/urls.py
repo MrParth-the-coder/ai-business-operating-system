@@ -6,6 +6,7 @@ from rest_framework.reverse import reverse
 from rest_framework.routers import DefaultRouter
 
 from core.views import (
+    AIChatView,
     CompanyCreateView,
     CompanyMeView,
     CustomerViewSet,
@@ -16,11 +17,14 @@ from core.views import (
     InvoiceViewSet,
     LoginView,
     LogoutView,
+    NotificationsView,
     PasswordResetConfirmView,
+    PredictionsView,
     PasswordResetRequestView,
     ProductViewSet,
     RefreshView,
     RegisterView,
+    ReportsView,
     SupplierViewSet,
 )
 
@@ -35,6 +39,8 @@ def api_root(request, format=None):
         'companies': reverse('company-create', request=request, format=format),
         'company-me': reverse('company-me', request=request, format=format),
         'dashboard': reverse('dashboard', request=request, format=format),
+        'ai-chat': reverse('ai-chat', request=request, format=format),
+        'predictions': reverse('predictions', request=request, format=format),
         'products': reverse('products-list', request=request, format=format),
         'customers': reverse('customers-list', request=request, format=format),
         'suppliers': reverse('suppliers-list', request=request, format=format),
@@ -62,6 +68,10 @@ urlpatterns = [
     path('companies/', CompanyCreateView.as_view(), name='company-create'),
     path('companies/me/', CompanyMeView.as_view(), name='company-me'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('ai/chat/', AIChatView.as_view(), name='ai-chat'),
+    path('reports/', ReportsView.as_view(), name='reports'),
+    path('notifications/', NotificationsView.as_view(), name='notifications'),
+    path('predictions/', PredictionsView.as_view(), name='predictions'),
 ]
 
 urlpatterns += router.urls

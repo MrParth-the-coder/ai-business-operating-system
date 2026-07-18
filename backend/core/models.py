@@ -108,6 +108,9 @@ class Company(models.Model):
 
     name = models.CharField(max_length=200)
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, related_name='owned_company', on_delete=models.CASCADE)
+    owner_name = models.CharField(max_length=200, blank=True)
+    owner_email = models.EmailField(blank=True)
+    owner_phone = models.CharField(max_length=30, blank=True)
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
     logo = models.FileField(upload_to='logos/', blank=True, null=True)
     currency = models.CharField(max_length=10, default='USD')
@@ -159,6 +162,7 @@ class Customer(SoftDeleteModel):
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=30)
     email = models.EmailField(blank=True)
+    purchase_history = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

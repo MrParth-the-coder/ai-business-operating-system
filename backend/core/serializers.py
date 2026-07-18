@@ -2,8 +2,9 @@ import re
 from datetime import timedelta
 from decimal import Decimal
 
-from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+
+from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils import timezone
 from rest_framework import serializers
@@ -29,6 +30,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         password = attrs['password']
         if len(password) < 8:
             raise serializers.ValidationError({'password': 'Password must be at least 8 characters.'})
+        if not re.search(r'\d', password):
+            raise serializers.ValidationError({'password': 'Password must contain at least one number.'})
+        if not re.search(r'[^A-Za-z0-9]', password):
+            raise serializers.ValidationError({'password': 'Password must contain at least one special character.'})
+        validate_password(password)
         return attrs
 
     def create(self, validated_data):
@@ -152,10 +158,12 @@ class CompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Company
-        fields = ['id', 'name', 'category', 'currency', 'logo']
+        fields = ['id', 'name', 'owner_name', 'owner_email', 'owner_phone', 'category', 'currency', 'logo']
 
     def validate_category(self, value):
-        company = getattr(self.context['request'].user, 'owned_company', None)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        company = getattr(user, 'owned_company', None) if user else None
         if company and company.invoices.filter(status='confirmed').exists() and value != company.category:
             raise serializers.ValidationError('Category cannot be changed once invoices exist.')
         return value
@@ -185,10 +193,13 @@ class ProductSerializer(serializers.ModelSerializer):
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'name', 'phone', 'email', 'is_active']
+        fields = ['id', 'name', 'phone', 'email', 'purchase_history', 'is_active']
 
     def validate_phone(self, value):
-        if self.instance is None and Customer.objects.filter(phone=value, company=self.context['request'].user.owned_company).exists():
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        company = getattr(user, 'owned_company', None) if user else None
+        if self.instance is None and company and Customer.objects.filter(phone=value, company=company).exists():
             raise serializers.ValidationError('Phone already exists for this company.')
         return value
 
