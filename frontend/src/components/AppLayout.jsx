@@ -22,7 +22,7 @@ import api, { logout as apiLogout, clearTokens } from '../lib/auth'
 import { ColorModeContext } from '../theme'
 import GlobalSearchModal from './GlobalSearchModal'
 import SystemSettingsModal from './SystemSettingsModal'
-import { CURRENCIES, getActiveCurrency, setActiveCurrency } from '../lib/currency'
+import { CURRENCIES, getActiveCurrency, setActiveCurrency, updateCompanyCurrency } from '../lib/currency'
 
 const drawerWidth = 260
 const baseNavLinks = [
@@ -50,6 +50,12 @@ export default function AppLayout({ children }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeCurrency, setActiveCurrencyState] = useState(getActiveCurrency())
+
+  useEffect(() => {
+    const handleCurrencyChange = () => setActiveCurrencyState(getActiveCurrency())
+    window.addEventListener('currency-changed', handleCurrencyChange)
+    return () => window.removeEventListener('currency-changed', handleCurrencyChange)
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -156,8 +162,7 @@ export default function AppLayout({ children }) {
             <Select
               value={activeCurrency}
               onChange={(e) => {
-                setActiveCurrency(e.target.value)
-                setActiveCurrencyState(e.target.value)
+                updateCompanyCurrency(e.target.value)
               }}
               size="small"
               sx={{

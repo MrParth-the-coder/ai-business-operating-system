@@ -5,10 +5,11 @@ import {
   Typography, useTheme
 } from '@mui/material'
 import SettingsIcon from '@mui/icons-material/Settings'
+import { CURRENCIES, getActiveCurrency, updateCompanyCurrency } from '../lib/currency'
 
 const DEFAULT_PREFS = {
   dateFormat: 'YYYY-MM-DD',
-  currencySymbol: '$',
+  currency: getActiveCurrency(),
   enableAlerts: true,
   autoRefreshDashboard: false,
 }
@@ -16,9 +17,9 @@ const DEFAULT_PREFS = {
 export function getSystemPreferences() {
   try {
     const saved = localStorage.getItem('aibos_preferences')
-    return saved ? { ...DEFAULT_PREFS, ...JSON.parse(saved) } : DEFAULT_PREFS
+    return saved ? { ...DEFAULT_PREFS, ...JSON.parse(saved), currency: getActiveCurrency() } : { ...DEFAULT_PREFS, currency: getActiveCurrency() }
   } catch {
-    return DEFAULT_PREFS
+    return { ...DEFAULT_PREFS, currency: getActiveCurrency() }
   }
 }
 
@@ -26,23 +27,28 @@ export default function SystemSettingsModal({ open, onClose }) {
   const theme = useTheme()
   const [prefs, setPrefs] = useState(getSystemPreferences())
   const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
-      setPrefs(getSystemPreferences())
+      setPrefs({ ...getSystemPreferences(), currency: getActiveCurrency() })
       setMessage('')
     }
   }, [open])
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setSaving(true)
     try {
       localStorage.setItem('aibos_preferences', JSON.stringify(prefs))
-      setMessage('Preferences saved successfully!')
+      await updateCompanyCurrency(prefs.currency)
+      setMessage('Settings & Currency preferences updated successfully!')
       setTimeout(() => {
         onClose()
       }, 800)
     } catch {
-      // ignore storage errors
+      setMessage('Failed to save settings.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -70,6 +76,21 @@ export default function SystemSettingsModal({ open, onClose }) {
           <TextField
             select
             fullWidth
+            label="Default Operating Currency"
+            value={prefs.currency}
+            onChange={(e) => setPrefs({ ...prefs, currency: e.target.value })}
+            helperText="Updates UI display formatting & backend company currency"
+          >
+            {Object.values(CURRENCIES).map((c) => (
+              <MenuItem key={c.code} value={c.code}>
+                {c.name}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
             label="Date Display Format"
             value={prefs.dateFormat}
             onChange={(e) => setPrefs({ ...prefs, dateFormat: e.target.value })}
@@ -77,20 +98,6 @@ export default function SystemSettingsModal({ open, onClose }) {
             <MenuItem value="YYYY-MM-DD">YYYY-MM-DD (2026-07-18)</MenuItem>
             <MenuItem value="DD/MM/YYYY">DD/MM/YYYY (18/07/2026)</MenuItem>
             <MenuItem value="MM/DD/YYYY">MM/DD/YYYY (07/18/2026)</MenuItem>
-          </TextField>
-
-          <TextField
-            select
-            fullWidth
-            label="Default Currency Symbol"
-            value={prefs.currencySymbol}
-            onChange={(e) => setPrefs({ ...prefs, currencySymbol: e.target.value })}
-          >
-            <MenuItem value="$">$ (USD / AUD / CAD)</MenuItem>
-            <MenuItem value="€">€ (EUR)</MenuItem>
-            <MenuItem value="£">£ (GBP)</MenuItem>
-            <MenuItem value="₹">₹ (INR)</MenuItem>
-            <MenuItem value="¥">¥ (JPY / CNY)</MenuItem>
           </TextField>
 
           <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
@@ -133,7 +140,9 @@ export default function SystemSettingsModal({ open, onClose }) {
 
       <DialogActions sx={{ p: 2.5, pt: 1 }}>
         <Button onClick={onClose} variant="outlined">Cancel</Button>
-        <Button onClick={handleSave} variant="contained">Save Settings</Button>
+        <Button onClick={handleSave} variant="contained" disabled={saving}>
+          {saving ? 'Saving...' : 'Save Settings'}
+        </Button>
       </DialogActions>
     </Dialog>
   )

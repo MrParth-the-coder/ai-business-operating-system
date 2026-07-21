@@ -24,6 +24,7 @@ import AppLayout from '../components/AppLayout'
 import InvoicePrintModal from '../components/InvoicePrintModal'
 import OCRScanModal from '../components/OCRScanModal'
 import PaymentCheckoutModal from '../components/PaymentCheckoutModal'
+import { formatCurrency, getActiveCurrency } from '../lib/currency'
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([])
@@ -300,6 +301,7 @@ export default function InvoicesPage() {
                       size="small"
                       inputProps={{ min: 1 }}
                       value={row.qty}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
                       sx={{ width: { xs: '100%', sm: 120 } }}
                     />
@@ -416,16 +418,16 @@ export default function InvoicesPage() {
                       <Box sx={{ bgcolor: 'action.hover', p: 1.5, borderRadius: 2, mb: 2 }}>
                         <Stack direction="row" justifyContent="space-between">
                           <Typography variant="caption" color="text.secondary">SUBTOTAL</Typography>
-                          <Typography variant="caption">${Number(invoice.subtotal).toFixed(2)}</Typography>
+                          <Typography variant="caption">{formatCurrency(invoice.subtotal || 0, displayCurrency, true)}</Typography>
                         </Stack>
                         <Stack direction="row" justifyContent="space-between">
                           <Typography variant="caption" color="text.secondary">TAX (10%)</Typography>
-                          <Typography variant="caption">${Number(invoice.tax).toFixed(2)}</Typography>
+                          <Typography variant="caption">{formatCurrency(invoice.tax || 0, displayCurrency, true)}</Typography>
                         </Stack>
                         <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5, pt: 0.5, borderTop: '1px dashed #ccc' }}>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>TOTAL</Typography>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                            ${Number(invoice.total).toFixed(2)}
+                            {formatCurrency(invoice.total || 0, displayCurrency, true)}
                           </Typography>
                         </Stack>
                       </Box>

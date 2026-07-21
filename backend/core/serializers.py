@@ -158,7 +158,7 @@ class CompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Company
-        fields = ['id', 'name', 'owner_name', 'owner_email', 'owner_phone', 'category', 'currency', 'logo']
+        fields = ['id', 'name', 'owner_name', 'owner_email', 'owner_phone', 'category', 'currency', 'tax_rate', 'billing_terms', 'address', 'logo']
 
     def validate_category(self, value):
         request = self.context.get('request')

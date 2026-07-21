@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   Box, Button, Chip, Dialog, DialogActions, DialogContent,
   Divider, Stack, Table, TableBody, TableCell, TableHead,
@@ -5,15 +6,32 @@ import {
 } from '@mui/material'
 import PrintIcon from '@mui/icons-material/Print'
 import CloseIcon from '@mui/icons-material/Close'
+import api from '../lib/auth'
 
 export default function InvoicePrintModal({ invoice, open, onClose }) {
   const theme = useTheme()
+  const [company, setCompany] = useState(null)
+
+  useEffect(() => {
+    if (open) {
+      api.get('/companies/me/')
+        .then(({ data }) => setCompany(data))
+        .catch(() => {})
+    }
+  }, [open])
 
   if (!invoice) return null
 
+  const companyData = invoice.company || company
+  const companyName = companyData?.name || 'AI-BOS OPERATIONS'
+  const companyAddress = companyData?.address || ''
+  const companyTaxRate = companyData?.tax_rate !== undefined ? parseFloat(companyData.tax_rate) : 10.0
+  const companyTerms = companyData?.billing_terms || 'Thank you for your business! Payment due within 15 days.'
+  const logoUrl = companyData?.logo || null
+
   const items = invoice.items || []
-  const subtotal = items.reduce((acc, item) => acc + (Number(item.price || 0) * Number(item.qty || 1)), 0)
-  const tax = subtotal * 0.1
+  const subtotal = Number(invoice.subtotal || items.reduce((acc, item) => acc + (Number(item.price || 0) * Number(item.qty || 1)), 0))
+  const tax = Number(invoice.tax || (subtotal * companyTaxRate) / 100)
   const grandTotal = Number(invoice.total || (subtotal + tax))
 
   const handlePrint = () => {
@@ -39,12 +57,17 @@ export default function InvoicePrintModal({ invoice, open, onClose }) {
           {/* Header */}
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 4 }}>
             <Box>
+              {logoUrl ? (
+                <Box component="img" src={logoUrl} alt={companyName} sx={{ maxHeight: 48, mb: 1, objectFit: 'contain' }} />
+              ) : null}
               <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e293b' }}>
-                AI-BOS INVOICE
+                {companyName.toUpperCase()}
               </Typography>
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
-                Enterprise Operations Suite
-              </Typography>
+              {companyAddress && (
+                <Typography variant="body2" sx={{ color: '#64748b', whiteSpace: 'pre-line' }}>
+                  {companyAddress}
+                </Typography>
+              )}
             </Box>
             <Box sx={{ textAlign: 'right' }}>
               <Typography variant="h6" sx={{ fontWeight: 700, color: '#4f46e5' }}>
@@ -98,14 +121,14 @@ export default function InvoicePrintModal({ invoice, open, onClose }) {
             </TableHead>
             <TableBody>
               {items.map((item, index) => {
-                const lineTotal = Number(item.price || 0) * Number(item.qty || 1)
+                const lineTotal = Number(item.price || item.unit_price || 0) * Number(item.qty || 1)
                 return (
                   <TableRow key={index}>
                     <TableCell sx={{ fontWeight: 600, color: '#1e293b' }}>
-                      {item.product_name || `Product #${item.product}`}
+                      {item.product_name || item.name || `Product #${item.product}`}
                     </TableCell>
                     <TableCell align="center" sx={{ color: '#475569' }}>{item.qty}</TableCell>
-                    <TableCell align="right" sx={{ color: '#475569' }}>${Number(item.price || 0).toFixed(2)}</TableCell>
+                    <TableCell align="right" sx={{ color: '#475569' }}>${Number(item.price || item.unit_price || 0).toFixed(2)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600, color: '#0f172a' }}>${lineTotal.toFixed(2)}</TableCell>
                   </TableRow>
                 )
@@ -115,13 +138,13 @@ export default function InvoicePrintModal({ invoice, open, onClose }) {
 
           {/* Totals Summary */}
           <Stack direction="row" justifyContent="flex-end" sx={{ mb: 4 }}>
-            <Box sx={{ width: 260 }}>
+            <Box sx={{ width: 280 }}>
               <Stack direction="row" justifyContent="space-between" sx={{ py: 0.5 }}>
                 <Typography variant="body2" sx={{ color: '#64748b' }}>Subtotal:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>${subtotal.toFixed(2)}</Typography>
               </Stack>
               <Stack direction="row" justifyContent="space-between" sx={{ py: 0.5 }}>
-                <Typography variant="body2" sx={{ color: '#64748b' }}>Estimated Tax (10%):</Typography>
+                <Typography variant="body2" sx={{ color: '#64748b' }}>Tax ({companyTaxRate.toFixed(1)}%):</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>${tax.toFixed(2)}</Typography>
               </Stack>
               <Divider sx={{ my: 1 }} />
@@ -132,15 +155,16 @@ export default function InvoicePrintModal({ invoice, open, onClose }) {
             </Box>
           </Stack>
 
-          {/* Footer Signature Block */}
+          {/* Footer Signature Block & Terms */}
           <Divider sx={{ my: 4 }} />
           <Stack direction="row" justifyContent="space-between" alignItems="flex-end">
-            <Box>
-              <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                Thank you for your business! Terms: Net 30 days.
+            <Box sx={{ maxWidth: '60%' }}>
+              <Typography variant="overline" sx={{ fontWeight: 700, color: '#64748b' }}>TERMS & NOTES</Typography>
+              <Typography variant="body2" sx={{ color: '#475569', whiteSpace: 'pre-line' }}>
+                {companyTerms}
               </Typography>
             </Box>
-            <Box sx={{ textAlign: 'center', width: 200 }}>
+            <Box sx={{ textAlign: 'center', width: 180 }}>
               <Box sx={{ borderBottom: '1px dashed #cbd5e1', mb: 1, pb: 3 }} />
               <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
                 Authorized Signature

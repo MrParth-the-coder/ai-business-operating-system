@@ -1106,6 +1106,58 @@ class CustomerViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
         except Exception as e:
             return Response({'detail': f'CSV import error: {str(e)}'}, status=400)
 
+    @action(detail=True, methods=['get'])
+    def export_statement(self, request, pk=None):
+        customer = self.get_object()
+        company = get_user_company(request.user)
+        invoices = Invoice.objects.filter(company=company, customer=customer).order_by('-created_at')
+
+        total_billed = sum(float(inv.total) for inv in invoices)
+        paid_billed = sum(float(inv.total) for inv in invoices if inv.payment_status == 'paid')
+        outstanding = total_billed - paid_billed
+
+        statement_data = {
+            'customer_id': customer.id,
+            'customer_name': customer.name,
+            'email': customer.email,
+            'phone': customer.phone,
+            'company_name': company.name if company else '',
+            'total_billed': round(total_billed, 2),
+            'total_paid': round(paid_billed, 2),
+            'outstanding_balance': round(outstanding, 2),
+            'invoices': [
+                {
+                    'id': inv.id,
+                    'date': inv.created_at.strftime('%Y-%m-%d'),
+                    'status': inv.status,
+                    'payment_status': inv.payment_status,
+                    'total': float(inv.total),
+                }
+                for inv in invoices
+            ]
+        }
+
+        export_type = request.query_params.get('format') or request.query_params.get('export')
+        if export_type == 'csv':
+            buffer = StringIO()
+            writer = csv.writer(buffer)
+            writer.writerow(['CUSTOMER FINANCIAL STATEMENT'])
+            writer.writerow(['Customer Name', customer.name])
+            writer.writerow(['Company', company.name if company else ''])
+            writer.writerow(['Total Billed', total_billed])
+            writer.writerow(['Total Paid', paid_billed])
+            writer.writerow(['Outstanding Balance', outstanding])
+            writer.writerow([])
+            writer.writerow(['Invoice ID', 'Date', 'Status', 'Payment Status', 'Total'])
+            for inv in statement_data['invoices']:
+                writer.writerow([inv['id'], inv['date'], inv['status'], inv['payment_status'], inv['total']])
+
+            response = HttpResponse(buffer.getvalue(), content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="statement_customer_{customer.id}.csv"'
+            return response
+
+        return Response(statement_data)
+
 
 class SupplierViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
     serializer_class = SupplierSerializer
@@ -1132,6 +1184,39 @@ class SupplierViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
         instance = self.get_object()
         instance.soft_delete()
         return Response({'detail': 'Supplier deleted.'}, status=204)
+
+    @action(detail=False, methods=['post'])
+    def bulk_import(self, request):
+        company = get_user_company(request.user)
+        if not company:
+            return Response({'detail': 'No active company found.'}, status=400)
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file uploaded.'}, status=400)
+        try:
+            content = file.read().decode('utf-8')
+            csv_reader = csv.DictReader(StringIO(content))
+            created_count = 0
+            errors = []
+            with transaction.atomic():
+                for idx, row in enumerate(csv_reader, start=1):
+                    name = row.get('name') or row.get('Name') or row.get('supplier_name')
+                    if not name:
+                        errors.append(f"Row {idx}: Name is required.")
+                        continue
+                    phone = row.get('phone') or row.get('Phone') or ''
+                    category = row.get('product_category') or row.get('Category') or 'General'
+                    Supplier.objects.create(
+                        company=company,
+                        name=name.strip(),
+                        phone=phone.strip(),
+                        product_category=category.strip()
+                    )
+                    created_count += 1
+            AuditLog.log(request, f"Bulk imported {created_count} suppliers via CSV", action_type='BULK_IMPORT', description=f"Imported {created_count} suppliers")
+            return Response({'detail': f'Successfully imported {created_count} suppliers.', 'imported_count': created_count, 'errors': errors})
+        except Exception as e:
+            return Response({'detail': f'CSV import error: {str(e)}'}, status=400)
 
 
 class EmployeeViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
@@ -1386,8 +1471,13 @@ class InvoiceViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
         )
         
         story.append(Paragraph(invoice.company.name.upper(), title_style))
+        subtitle_lines = []
         if invoice.company.owner_name:
-            story.append(Paragraph(f"Owner: {invoice.company.owner_name} | Email: {invoice.company.owner_email}", subtitle_style))
+            subtitle_lines.append(f"Owner: {invoice.company.owner_name} | Email: {invoice.company.owner_email}")
+        if invoice.company.address:
+            subtitle_lines.append(f"Address: {invoice.company.address}")
+        if subtitle_lines:
+            story.append(Paragraph("<br/>".join(subtitle_lines), subtitle_style))
         else:
             story.append(Spacer(1, 10))
             
@@ -1409,6 +1499,7 @@ class InvoiceViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
         story.append(t1)
         story.append(Spacer(1, 15))
         
+        tax_pct = float(getattr(invoice.company, 'tax_rate', 10.0))
         table_data = [[
             Paragraph("<b>Product</b>", body_style), 
             Paragraph("<b>Qty</b>", body_style), 
@@ -1424,7 +1515,7 @@ class InvoiceViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
             ])
             
         table_data.append(["", "", Paragraph("<b>Subtotal:</b>", body_style), Paragraph(f"<b>{invoice.company.currency} {invoice.subtotal:.2f}</b>", body_style)])
-        table_data.append(["", "", Paragraph("<b>Tax (10%):</b>", body_style), Paragraph(f"<b>{invoice.company.currency} {invoice.tax:.2f}</b>", body_style)])
+        table_data.append(["", "", Paragraph(f"<b>Tax ({tax_pct:.1f}%):</b>", body_style), Paragraph(f"<b>{invoice.company.currency} {invoice.tax:.2f}</b>", body_style)])
         table_data.append(["", "", Paragraph("<b>Total:</b>", body_style), Paragraph(f"<b>{invoice.company.currency} {invoice.total:.2f}</b>", body_style)])
         
         t2 = Table(table_data, colWidths=[240, 60, 120, 120])
@@ -1440,9 +1531,10 @@ class InvoiceViewSet(PermissionRequiredMixin, viewsets.ModelViewSet):
             ('BOTTOMPADDING', (2,-3), (3,-1), 4),
         ]))
         story.append(t2)
-        story.append(Spacer(1, 30))
+        story.append(Spacer(1, 25))
         
-        story.append(Paragraph("Thank you for your business!", body_style))
+        terms_text = invoice.company.billing_terms or "Thank you for your business!"
+        story.append(Paragraph(f"<b>PAYMENT TERMS & NOTES:</b><br/>{terms_text}", body_style))
         
         doc.build(story)
         return response

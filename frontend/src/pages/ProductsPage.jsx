@@ -19,9 +19,9 @@ import BulkImportModal from '../components/BulkImportModal'
 const initialProductForm = {
   name: '',
   category: '',
-  price: '0.00',
-  stock_qty: 0,
-  low_stock_threshold: 10,
+  price: '',
+  stock_qty: '',
+  low_stock_threshold: '10',
   supplier: '',
   is_active: true,
   image: null
@@ -84,9 +84,9 @@ export default function ProductsPage() {
       const formData = new FormData()
       formData.append('name', form.name)
       formData.append('category', form.category)
-      formData.append('price', parseFloat(form.price) || 0)
-      formData.append('stock_qty', Number(form.stock_qty))
-      formData.append('low_stock_threshold', Number(form.low_stock_threshold))
+      formData.append('price', form.price !== '' ? parseFloat(form.price) : 0)
+      formData.append('stock_qty', form.stock_qty !== '' ? parseInt(form.stock_qty, 10) : 0)
+      formData.append('low_stock_threshold', form.low_stock_threshold !== '' ? parseInt(form.low_stock_threshold, 10) : 10)
       formData.append('is_active', form.is_active)
       if (form.supplier) formData.append('supplier', form.supplier)
       if (form.image) formData.append('image', form.image)
@@ -186,9 +186,9 @@ export default function ProductsPage() {
                 </FormControl>
               </Stack>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <TextField label="Price" type="number" inputProps={{ step: '0.01' }} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} fullWidth />
-                <TextField label="Stock Quantity" type="number" value={form.stock_qty} onChange={(e) => setForm({ ...form, stock_qty: Number(e.target.value) })} fullWidth />
-                <TextField label="Low Stock Threshold" type="number" value={form.low_stock_threshold} onChange={(e) => setForm({ ...form, low_stock_threshold: Number(e.target.value) })} fullWidth />
+                <TextField label="Price" type="number" placeholder="0.00" inputProps={{ step: '0.01' }} value={form.price} onFocus={(e) => e.target.select()} onChange={(e) => setForm({ ...form, price: e.target.value })} fullWidth />
+                <TextField label="Stock Quantity" type="number" placeholder="0" value={form.stock_qty} onFocus={(e) => e.target.select()} onChange={(e) => setForm({ ...form, stock_qty: e.target.value })} fullWidth />
+                <TextField label="Low Stock Threshold" type="number" placeholder="10" value={form.low_stock_threshold} onFocus={(e) => e.target.select()} onChange={(e) => setForm({ ...form, low_stock_threshold: e.target.value })} fullWidth />
               </Stack>
               
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">

@@ -212,6 +212,27 @@ class AuthAndInvoiceTests(TestCase):
         self.assertEqual(json_res.status_code, 200)
         self.assertEqual(json_res['Content-Type'], 'application/json')
 
+    def test_customer_export_statement(self):
+        customer = Customer.objects.create(company=self.company, name="Statement Test Customer", email="statement@example.com")
+        res = self.client.get(f'/api/customers/{customer.id}/export_statement/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('total_billed', res.json())
+        self.assertEqual(res.json()['customer_name'], "Statement Test Customer")
+
+        csv_res = self.client.get(f'/api/customers/{customer.id}/export_statement/?export=csv')
+        self.assertEqual(csv_res.status_code, 200)
+        self.assertEqual(csv_res['Content-Type'], 'text/csv')
+
+    def test_supplier_bulk_import(self):
+        from io import BytesIO
+        csv_data = "name,phone,product_category\nSupplier Alpha,1234567890,Electronics\nSupplier Beta,0987654321,Hardware\n"
+        file_obj = BytesIO(csv_data.encode('utf-8'))
+        file_obj.name = 'suppliers.csv'
+        res = self.client.post('/api/suppliers/bulk_import/', {'file': file_obj}, format='multipart')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['imported_count'], 2)
+
+
 
 
 

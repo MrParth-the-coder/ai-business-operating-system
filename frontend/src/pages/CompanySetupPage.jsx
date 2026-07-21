@@ -8,7 +8,10 @@ import api from '../lib/auth'
 import AppLayout from '../components/AppLayout'
 
 export default function CompanySetupPage() {
-  const [form, setForm] = useState({ name: '', owner_name: '', owner_email: '', owner_phone: '', category: 'retail', currency: 'USD', logo: null })
+  const [form, setForm] = useState({
+    name: '', owner_name: '', owner_email: '', owner_phone: '', category: 'retail', currency: 'USD',
+    tax_rate: '10.00', address: '', billing_terms: 'Payment due within 15 days. Thank you for your business!', logo: null
+  })
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -30,6 +33,9 @@ export default function CompanySetupPage() {
           owner_phone: data.owner_phone || '',
           category: data.category || 'retail',
           currency: data.currency || 'USD',
+          tax_rate: data.tax_rate !== undefined ? String(data.tax_rate) : '10.00',
+          address: data.address || '',
+          billing_terms: data.billing_terms || 'Payment due within 15 days. Thank you for your business!',
           logo: null
         })
         setEditMode(false)
@@ -72,6 +78,9 @@ export default function CompanySetupPage() {
       data.append('owner_phone', form.owner_phone || '')
       data.append('category', form.category)
       data.append('currency', form.currency)
+      data.append('tax_rate', form.tax_rate !== '' ? parseFloat(form.tax_rate) : 10.0)
+      data.append('address', form.address || '')
+      data.append('billing_terms', form.billing_terms || '')
       if (form.logo) data.append('logo', form.logo)
 
       if (existingCompany) {
@@ -221,7 +230,10 @@ export default function CompanySetupPage() {
                     <MenuItem value="restaurant">Restaurant</MenuItem>
                   </TextField>
                   
-                  <TextField label="Currency" disabled={isSubmitting} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
+                  <TextField label="Base Currency Code" disabled={isSubmitting} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
+                  <TextField label="Default Tax Rate (%)" type="number" inputProps={{ step: '0.01', min: 0 }} disabled={isSubmitting} value={form.tax_rate} onFocus={(e) => e.target.select()} onChange={(e) => setForm({ ...form, tax_rate: e.target.value })} helperText="Default tax percentage applied to draft invoices" />
+                  <TextField label="Business Address" multiline rows={2} disabled={isSubmitting} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="123 Commerce Way, Suite 100, New York, NY" />
+                  <TextField label="Invoice Payment Terms & Notes" multiline rows={2} disabled={isSubmitting} value={form.billing_terms} onChange={(e) => setForm({ ...form, billing_terms: e.target.value })} placeholder="Payment due within 15 days. Thank you for your business!" />
                   
                   <Button variant="outlined" component="label" sx={{ justifyContent: 'center', py: 1.5 }} disabled={isSubmitting}>
                     Upload logo
