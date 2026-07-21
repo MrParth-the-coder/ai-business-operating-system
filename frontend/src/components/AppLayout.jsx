@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react'
-import { AppBar, Avatar, Box, Button, Divider, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, Toolbar, Typography, useTheme } from '@mui/material'
+import { AppBar, Avatar, Box, Button, Divider, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, MenuItem, Select, Stack, Toolbar, Typography, useTheme } from '@mui/material'
 import MenuIcon from '@mui/icons-material/Menu'
 import Brightness4Icon from '@mui/icons-material/Brightness4'
 import Brightness7Icon from '@mui/icons-material/Brightness7'
@@ -22,6 +22,7 @@ import api, { logout as apiLogout, clearTokens } from '../lib/auth'
 import { ColorModeContext } from '../theme'
 import GlobalSearchModal from './GlobalSearchModal'
 import SystemSettingsModal from './SystemSettingsModal'
+import { CURRENCIES, getActiveCurrency, setActiveCurrency } from '../lib/currency'
 
 const drawerWidth = 260
 const baseNavLinks = [
@@ -48,6 +49,7 @@ export default function AppLayout({ children }) {
   const [navLinks, setNavLinks] = useState(baseNavLinks)
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [activeCurrency, setActiveCurrencyState] = useState(getActiveCurrency())
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -150,6 +152,33 @@ export default function AppLayout({ children }) {
             </Typography>
           </Box>
           <Stack direction="row" spacing={1.5} alignItems="center">
+            {/* Global Currency Switcher */}
+            <Select
+              value={activeCurrency}
+              onChange={(e) => {
+                setActiveCurrency(e.target.value)
+                setActiveCurrencyState(e.target.value)
+              }}
+              size="small"
+              sx={{
+                color: 'inherit',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                height: 32,
+                borderRadius: 2,
+                border: '1px solid rgba(255,255,255,0.25)',
+                '& .MuiSelect-icon': { color: 'inherit' },
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                display: { xs: 'none', sm: 'inline-flex' }
+              }}
+            >
+              {Object.values(CURRENCIES).map((c) => (
+                <MenuItem key={c.code} value={c.code} sx={{ fontSize: '0.85rem' }}>
+                  {c.symbol} {c.code}
+                </MenuItem>
+              ))}
+            </Select>
+
             <Button
               color="inherit"
               onClick={() => setSearchOpen(true)}

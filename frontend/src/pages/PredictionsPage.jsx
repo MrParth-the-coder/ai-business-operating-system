@@ -13,11 +13,19 @@ import CalculateIcon from '@mui/icons-material/Calculate'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import api from '../lib/auth'
 import AppLayout from '../components/AppLayout'
+import { formatCurrency, getActiveCurrency } from '../lib/currency'
 
 export default function PredictionsPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [displayCurrency, setDisplayCurrency] = useState(getActiveCurrency())
+
+  useEffect(() => {
+    const handleCurrencyChange = () => setDisplayCurrency(getActiveCurrency())
+    window.addEventListener('currency-changed', handleCurrencyChange)
+    return () => window.removeEventListener('currency-changed', handleCurrencyChange)
+  }, [])
 
   // What-If Simulator state
   const [priceChange, setPriceChange] = useState(5)
@@ -101,7 +109,7 @@ export default function PredictionsPage() {
 
                   <Stack direction="row" spacing={3} alignItems="baseline" sx={{ my: 1 }}>
                     <Typography variant="h3" sx={{ fontWeight: 800, color: 'primary.main' }}>
-                      ${Number(salesForecast?.forecast || 0).toFixed(2)}
+                      {formatCurrency(salesForecast?.forecast || 0, displayCurrency, true)}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" fontWeight={600}>
                       / avg daily
@@ -116,7 +124,7 @@ export default function PredictionsPage() {
                       variant="outlined"
                     />
                     <Chip
-                      label={`7D Moving Avg: $${Number(salesForecast?.moving_average_7d || 0).toFixed(2)}`}
+                      label={`7D Moving Avg: ${formatCurrency(salesForecast?.moving_average_7d || 0, displayCurrency, true)}`}
                       size="small"
                       variant="outlined"
                     />
@@ -314,13 +322,15 @@ export default function PredictionsPage() {
                             <Grid container spacing={2}>
                               <Grid item xs={6}>
                                 <Typography variant="caption" color="text.secondary">Baseline Revenue</Typography>
-                                <Typography variant="h6" fontWeight={700}>${simResult.baseline_revenue_30d?.toLocaleString()}</Typography>
+                                <Typography variant="h6" fontWeight={700}>
+                                  {formatCurrency(simResult.baseline_revenue_30d || 0, displayCurrency, true)}
+                                </Typography>
                               </Grid>
 
                               <Grid item xs={6}>
                                 <Typography variant="caption" color="text.secondary">Projected Revenue</Typography>
                                 <Typography variant="h6" fontWeight={800} color={simResult.revenue_delta_30d >= 0 ? 'success.main' : 'error.main'}>
-                                  ${simResult.simulated_revenue_30d?.toLocaleString()}
+                                  {formatCurrency(simResult.simulated_revenue_30d || 0, displayCurrency, true)}
                                 </Typography>
                               </Grid>
                             </Grid>
@@ -330,7 +340,7 @@ export default function PredictionsPage() {
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                               <Typography variant="subtitle2" fontWeight={700}>Projected Net Revenue Gain:</Typography>
                               <Chip
-                                label={`${simResult.revenue_delta_30d >= 0 ? '+' : ''}$${simResult.revenue_delta_30d?.toLocaleString()}`}
+                                label={formatCurrency(simResult.revenue_delta_30d || 0, displayCurrency, true)}
                                 color={simResult.revenue_delta_30d >= 0 ? 'success' : 'error'}
                                 sx={{ fontWeight: 800 }}
                               />

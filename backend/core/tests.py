@@ -198,6 +198,20 @@ class AuthAndInvoiceTests(TestCase):
         self.assertIn('revenue_delta_30d', data)
         self.assertIn('executive_takeaway', data)
 
+    def test_reports_preset_filters_and_export_formats(self):
+        preset_res = self.client.get('/api/reports/?preset=30d')
+        self.assertEqual(preset_res.status_code, 200)
+        self.assertIn('category_breakdown', preset_res.json()['sales'])
+        self.assertIn('top_customers', preset_res.json()['sales'])
+
+        csv_res = self.client.get('/api/reports/?export=csv')
+        self.assertEqual(csv_res.status_code, 200)
+        self.assertEqual(csv_res['Content-Type'], 'text/csv')
+
+        json_res = self.client.get('/api/reports/?export=json')
+        self.assertEqual(json_res.status_code, 200)
+        self.assertEqual(json_res['Content-Type'], 'application/json')
+
 
 
 

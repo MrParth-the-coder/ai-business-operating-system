@@ -723,8 +723,27 @@ class ReportsView(PermissionRequiredMixin, views.APIView):
         if not company:
             return Response({'sales': {'revenue': 0, 'paid_revenue': 0, 'unpaid_revenue': 0, 'invoice_count': 0, 'monthly_trend': []}, 'inventory': {'items': 0, 'low_stock': 0, 'total_valuation': 0}, 'customers': {'total': 0, 'active': 0, 'vip_count': 0}, 'date_range': None})
 
+        preset = request.query_params.get('preset')
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
+
+        today = timezone.now().date()
+
+        if preset == 'today':
+            start_date = end_date = today.isoformat()
+        elif preset == '7d':
+            start_date = (today - timezone.timedelta(days=7)).isoformat()
+            end_date = today.isoformat()
+        elif preset == '30d':
+            start_date = (today - timezone.timedelta(days=30)).isoformat()
+            end_date = today.isoformat()
+        elif preset == 'this_month':
+            start_date = today.replace(day=1).isoformat()
+            end_date = today.isoformat()
+        elif preset == 'ytd':
+            start_date = today.replace(month=1, day=1).isoformat()
+            end_date = today.isoformat()
+
         queryset = Invoice.objects.filter(company=company)
 
         if start_date:
@@ -732,18 +751,55 @@ class ReportsView(PermissionRequiredMixin, views.APIView):
         if end_date:
             queryset = queryset.filter(created_at__date__lte=end_date)
 
-        confirmed_invoices = queryset.filter(status='confirmed')
-        sales_total = confirmed_invoices.aggregate(total=Sum('total'))['total'] or 0
-        paid_total = confirmed_invoices.filter(payment_status='paid').aggregate(total=Sum('total'))['total'] or 0
-        unpaid_total = confirmed_invoices.filter(payment_status__in=['unpaid', 'overdue']).aggregate(total=Sum('total'))['total'] or 0
+        confirmed_invoices = queryset.filter(status='confirmed').prefetch_related('items', 'customer')
+        sales_total = float(confirmed_invoices.aggregate(total=Sum('total'))['total'] or 0)
+        paid_total = float(confirmed_invoices.filter(payment_status='paid').aggregate(total=Sum('total'))['total'] or 0)
+        unpaid_total = float(confirmed_invoices.filter(payment_status__in=['unpaid', 'overdue']).aggregate(total=Sum('total'))['total'] or 0)
 
         # Build sales trend array
         from django.db.models.functions import TruncDate
         trend_qs = confirmed_invoices.annotate(date=TruncDate('created_at')).values('date').annotate(daily_total=Sum('total')).order_by('date')
         monthly_trend = [{'date': item['date'].isoformat(), 'revenue': float(item['daily_total'])} for item in trend_qs if item['date']]
 
-        # Inventory valuation
+        # Category performance breakdown
         products = Product.objects.filter(company=company)
+
+        cat_sales = {}
+        for inv in confirmed_invoices:
+            for item in inv.items.all():
+                if item.product:
+                    cat = item.product.category or 'Uncategorized'
+                else:
+                    cat = 'Uncategorized'
+                cat_sales[cat] = cat_sales.get(cat, 0.0) + float(item.line_total)
+
+        category_breakdown = []
+        for cat_name, cat_rev in sorted(cat_sales.items(), key=lambda x: x[1], reverse=True):
+            share_pct = round((cat_rev / max(1.0, sales_total)) * 100.0, 1) if sales_total > 0 else 0.0
+            category_breakdown.append({
+                'category': cat_name.capitalize(),
+                'revenue': round(cat_rev, 2),
+                'share_pct': share_pct,
+            })
+
+        # Top 5 Customers Leaderboard
+        cust_totals = {}
+        cust_counts = {}
+        for inv in confirmed_invoices:
+            if inv.customer:
+                cname = inv.customer.name
+                cust_totals[cname] = cust_totals.get(cname, 0.0) + float(inv.total)
+                cust_counts[cname] = cust_counts.get(cname, 0) + 1
+
+        top_customers = []
+        for cname, total_spent in sorted(cust_totals.items(), key=lambda x: x[1], reverse=True)[:5]:
+            top_customers.append({
+                'name': cname,
+                'total_spent': round(total_spent, 2),
+                'invoice_count': cust_counts[cname],
+            })
+
+        # Inventory valuation
         total_valuation = sum(float(p.price) * p.stock_qty for p in products)
         low_stock_count = sum(1 for p in products if p.stock_qty <= p.low_stock_threshold)
 
@@ -757,11 +813,13 @@ class ReportsView(PermissionRequiredMixin, views.APIView):
                 vip_count += 1
 
         sales_payload = {
-            'revenue': float(sales_total),
-            'paid_revenue': float(paid_total),
-            'unpaid_revenue': float(unpaid_total),
+            'revenue': sales_total,
+            'paid_revenue': paid_total,
+            'unpaid_revenue': unpaid_total,
             'invoice_count': confirmed_invoices.count(),
             'monthly_trend': monthly_trend,
+            'category_breakdown': category_breakdown,
+            'top_customers': top_customers,
         }
         inventory_payload = {
             'items': products.count(),
@@ -774,25 +832,64 @@ class ReportsView(PermissionRequiredMixin, views.APIView):
             'vip_count': vip_count,
         }
 
-        # Check for CSV export
-        if request.query_params.get('export') == 'csv':
+        report_data = {
+            'sales': sales_payload,
+            'inventory': inventory_payload,
+            'customers': customers_payload,
+            'date_range': {'start_date': start_date, 'end_date': end_date, 'preset': preset}
+        }
+
+        # Check for exports
+        export_type = request.query_params.get('export')
+        if export_type == 'csv':
             buffer = StringIO()
             writer = csv.writer(buffer)
+            writer.writerow(['AI-BOS EXECUTIVE ANALYTICS REPORT'])
+            writer.writerow(['Company', company.name])
+            writer.writerow(['Exported At', timezone.now().isoformat()])
+            writer.writerow(['Date Range', f"{start_date or 'All Time'} to {end_date or 'Present'}"])
+            writer.writerow([])
+
+            writer.writerow(['--- METRIC OVERVIEW ---'])
             writer.writerow(['Metric', 'Value'])
-            writer.writerow(['Total Revenue', sales_payload['revenue']])
-            writer.writerow(['Paid Revenue', sales_payload['paid_revenue']])
-            writer.writerow(['Unpaid Revenue', sales_payload['unpaid_revenue']])
-            writer.writerow(['Total Invoices', sales_payload['invoice_count']])
-            writer.writerow(['Total Inventory Valuation', inventory_payload['total_valuation']])
-            writer.writerow(['Total Products', inventory_payload['items']])
-            writer.writerow(['Low Stock Count', inventory_payload['low_stock']])
-            writer.writerow(['Total Customers', customers_payload['total']])
-            writer.writerow(['VIP Customers', customers_payload['vip_count']])
+            writer.writerow(['Gross Confirmed Revenue', sales_payload['revenue']])
+            writer.writerow(['Paid Revenue Collected', sales_payload['paid_revenue']])
+            writer.writerow(['Outstanding Unpaid Balance', sales_payload['unpaid_revenue']])
+            writer.writerow(['Total Invoices Count', sales_payload['invoice_count']])
+            writer.writerow(['Inventory Valuation ($)', inventory_payload['total_valuation']])
+            writer.writerow(['Total Listed Products', inventory_payload['items']])
+            writer.writerow(['Low Stock Alert Count', inventory_payload['low_stock']])
+            writer.writerow(['Total Registered Customers', customers_payload['total']])
+            writer.writerow(['VIP Champions Count', customers_payload['vip_count']])
+            writer.writerow([])
+
+            writer.writerow(['--- CATEGORY REVENUE BREAKDOWN ---'])
+            writer.writerow(['Category', 'Revenue ($)', 'Share (%)'])
+            for cat in category_breakdown:
+                writer.writerow([cat['category'], cat['revenue'], f"{cat['share_pct']}%"])
+            writer.writerow([])
+
+            writer.writerow(['--- TOP BUYERS LEADERBOARD ---'])
+            writer.writerow(['Customer Name', 'Total Spent ($)', 'Invoices Count'])
+            for tc in top_customers:
+                writer.writerow([tc['name'], tc['total_spent'], tc['invoice_count']])
+            writer.writerow([])
+
+            writer.writerow(['--- DAILY REVENUE TREND ---'])
+            writer.writerow(['Date', 'Revenue ($)'])
+            for trend in monthly_trend:
+                writer.writerow([trend['date'], trend['revenue']])
+
             response = HttpResponse(buffer.getvalue(), content_type='text/csv')
             response['Content-Disposition'] = 'attachment; filename="analytics_report.csv"'
             return response
 
-        return Response({'sales': sales_payload, 'inventory': inventory_payload, 'customers': customers_payload, 'date_range': {'start_date': start_date, 'end_date': end_date}})
+        elif export_type == 'json':
+            response = HttpResponse(json.dumps(report_data, indent=2), content_type='application/json')
+            response['Content-Disposition'] = 'attachment; filename="analytics_report.json"'
+            return response
+
+        return Response(report_data)
 
 
 class NotificationsView(PermissionRequiredMixin, views.APIView):

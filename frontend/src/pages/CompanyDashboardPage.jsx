@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, TextField, Ty
 import { Link } from 'react-router-dom'
 import api from '../lib/auth'
 import AppLayout from '../components/AppLayout'
+import { formatCurrency, getActiveCurrency } from '../lib/currency'
 
 export default function CompanyDashboardPage() {
   const [summary, setSummary] = useState(null)
@@ -12,6 +13,13 @@ export default function CompanyDashboardPage() {
   const [assistantReply, setAssistantReply] = useState('')
   const [assistantHistory, setAssistantHistory] = useState([])
   const [isAssistantLoading, setIsAssistantLoading] = useState(false)
+  const [displayCurrency, setDisplayCurrency] = useState(getActiveCurrency())
+
+  useEffect(() => {
+    const handleCurrencyChange = () => setDisplayCurrency(getActiveCurrency())
+    window.addEventListener('currency-changed', handleCurrencyChange)
+    return () => window.removeEventListener('currency-changed', handleCurrencyChange)
+  }, [])
 
   useEffect(() => {
     api.get('/companies/me/')
@@ -45,30 +53,32 @@ export default function CompanyDashboardPage() {
     }
   }
 
+  const formattedRevenue = summary ? formatCurrency(summary.revenue, displayCurrency, true) : ''
+
   const widgetsByCategory = {
     retail: [
       ['Products', summary?.products],
       ['Customers', summary?.customers],
       ['Suppliers', summary?.suppliers],
-      ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : ''],
+      ['Revenue', formattedRevenue],
     ],
     medical: [
       ['Medicines', summary?.products],
       ['Low Stock', summary?.low_stock],
       ['Suppliers', summary?.suppliers],
-      ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : ''],
+      ['Revenue', formattedRevenue],
     ],
     education: [
       ['Students', summary?.customers],
       ['Teachers', summary?.employees],
       ['Courses', summary?.products],
-      ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : ''],
+      ['Revenue', formattedRevenue],
     ],
     restaurant: [
       ['Items', summary?.products],
       ['Customers', summary?.customers],
       ['Low Stock', summary?.low_stock],
-      ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : ''],
+      ['Revenue', formattedRevenue],
     ],
   }
 
@@ -76,7 +86,7 @@ export default function CompanyDashboardPage() {
     ['Products', summary?.products],
     ['Customers', summary?.customers],
     ['Suppliers', summary?.suppliers],
-    ['Revenue', summary ? `$${summary.revenue.toFixed(2)}` : ''],
+    ['Revenue', formattedRevenue],
   ]
 
   return (
@@ -181,7 +191,7 @@ export default function CompanyDashboardPage() {
                               {inv.customer_name}
                             </Typography>
                             <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>
-                              ${inv.total.toFixed(2)}
+                              {formatCurrency(inv.total, displayCurrency, true)}
                             </Typography>
                             <Stack direction="row" spacing={1} alignItems="center">
                               <Chip

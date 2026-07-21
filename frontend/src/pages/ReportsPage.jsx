@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
   Alert, Box, Button, Card, CardContent, Chip, CircularProgress,
-  Grid, Stack, TextField, Typography, LinearProgress, Paper, useTheme
+  Grid, Stack, TextField, Typography, LinearProgress, Paper, useTheme,
+  Table, TableBody, TableCell, TableHead, TableRow
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
@@ -9,8 +10,12 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import Inventory2Icon from '@mui/icons-material/Inventory2'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import StarIcon from '@mui/icons-material/Star'
+import CategoryIcon from '@mui/icons-material/Category'
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import CodeIcon from '@mui/icons-material/Code'
 import api from '../lib/auth'
 import AppLayout from '../components/AppLayout'
+import { formatCurrency, getActiveCurrency } from '../lib/currency'
 
 export default function ReportsPage() {
   const theme = useTheme()
@@ -18,9 +23,17 @@ export default function ReportsPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
+  const [activePreset, setActivePreset] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [hoveredBar, setHoveredBar] = useState(null)
+  const [displayCurrency, setDisplayCurrency] = useState(getActiveCurrency())
+
+  useEffect(() => {
+    const handleCurrencyChange = () => setDisplayCurrency(getActiveCurrency())
+    window.addEventListener('currency-changed', handleCurrencyChange)
+    return () => window.removeEventListener('currency-changed', handleCurrencyChange)
+  }, [])
 
   const loadReport = (query = {}) => {
     setLoading(true)
@@ -37,29 +50,41 @@ export default function ReportsPage() {
 
   const handleApply = (event) => {
     event.preventDefault()
+    setActivePreset('')
     loadReport({ start_date: startDate, end_date: endDate })
   }
 
-  const handleExportCSV = async () => {
+  const handlePresetSelect = (presetKey) => {
+    setActivePreset(presetKey)
+    setStartDate('')
+    setEndDate('')
+    loadReport({ preset: presetKey })
+  }
+
+  const handleExport = async (format) => {
     setExporting(true)
     setError('')
     try {
       const params = new URLSearchParams()
-      if (startDate) params.append('start_date', startDate)
-      if (endDate) params.append('end_date', endDate)
-      params.append('export', 'csv')
+      if (activePreset) {
+        params.append('preset', activePreset)
+      } else {
+        if (startDate) params.append('start_date', startDate)
+        if (endDate) params.append('end_date', endDate)
+      }
+      params.append('export', format)
 
       const response = await api.get(`/reports/?${params.toString()}`, { responseType: 'blob' })
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', 'analytics_report.csv')
+      link.setAttribute('download', `analytics_report.${format}`)
       document.body.appendChild(link)
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch {
-      setError('Failed to export CSV report.')
+      setError(`Failed to export ${format.toUpperCase()} report.`)
     } finally {
       setExporting(false)
     }
@@ -68,6 +93,8 @@ export default function ReportsPage() {
   // Calculate chart max height for SVG trend rendering
   const trendData = report?.sales?.monthly_trend || []
   const maxRevenue = Math.max(...trendData.map((t) => t.revenue), 100)
+  const categoryBreakdown = report?.sales?.category_breakdown || []
+  const topCustomers = report?.sales?.top_customers || []
 
   return (
     <AppLayout>
@@ -76,68 +103,106 @@ export default function ReportsPage() {
           <Box>
             <Typography variant="overline" color="primary" sx={{ letterSpacing: 2, fontWeight: 700 }}>EXECUTIVE INSIGHTS</Typography>
             <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>Reports & Financial Analytics</Typography>
-            <Typography color="text.secondary">Real-time revenue performance, inventory asset valuations, and customer segmentation.</Typography>
+            <Typography color="text.secondary">Real-time revenue performance, inventory asset valuations, category share, and customer leaderboards.</Typography>
           </Box>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<DownloadIcon />}
-            onClick={handleExportCSV}
-            disabled={exporting || loading}
-          >
-            {exporting ? 'Exporting…' : 'Export Full Report (CSV)'}
-          </Button>
+
+          <Stack direction="row" spacing={1.5}>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<DownloadIcon />}
+              onClick={() => handleExport('csv')}
+              disabled={exporting || loading}
+            >
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<CodeIcon />}
+              onClick={() => handleExport('json')}
+              disabled={exporting || loading}
+            >
+              Export JSON
+            </Button>
+          </Stack>
         </Stack>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        {/* Date Filter Bar */}
-        <Card sx={{ mb: 3 }}>
+        {/* Date Filter Bar & Presets */}
+        <Card sx={{ mb: 3, borderRadius: 3, boxShadow: '0 8px 32px rgba(15,23,42,0.06)' }}>
           <CardContent sx={{ p: 2.5 }}>
-            <Box component="form" onSubmit={handleApply}>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} alignItems="center">
-                <TextField
-                  label="Start Date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      transform: 'translate(14px, -9px) scale(0.75) !important',
-                      backgroundColor: 'background.paper',
-                      px: 0.8,
-                      borderRadius: 1,
-                      fontWeight: 600,
-                    },
-                  }}
-                />
-                <TextField
-                  label="End Date"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      transform: 'translate(14px, -9px) scale(0.75) !important',
-                      backgroundColor: 'background.paper',
-                      px: 0.8,
-                      borderRadius: 1,
-                      fontWeight: 600,
-                    },
-                  }}
-                />
-                <Button type="submit" variant="contained" size="large" sx={{ px: 4, whiteSpace: 'nowrap', minWidth: 130 }}>
-                  Apply Filter
-                </Button>
-                <Button variant="outlined" color="inherit" onClick={() => { setStartDate(''); setEndDate(''); loadReport() }} sx={{ whiteSpace: 'nowrap' }}>
-                  Reset
-                </Button>
+            <Stack spacing={2}>
+              {/* Presets Row */}
+              <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center" useFlexGap sx={{ gap: 1 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ mr: 1 }}>QUICK PRESETS:</Typography>
+                {[
+                  { key: 'today', label: 'Today' },
+                  { key: '7d', label: 'Last 7 Days' },
+                  { key: '30d', label: 'Last 30 Days' },
+                  { key: 'this_month', label: 'This Month' },
+                  { key: 'ytd', label: 'Year to Date' }
+                ].map((p) => (
+                  <Chip
+                    key={p.key}
+                    label={p.label}
+                    onClick={() => handlePresetSelect(p.key)}
+                    color={activePreset === p.key ? 'primary' : 'default'}
+                    variant={activePreset === p.key ? 'filled' : 'outlined'}
+                    clickable
+                    size="small"
+                  />
+                ))}
               </Stack>
-            </Box>
+
+              <Box component="form" onSubmit={handleApply}>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} alignItems="center">
+                  <TextField
+                    label="Start Date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                    size="small"
+                    sx={{
+                      '& .MuiInputLabel-root': {
+                        transform: 'translate(14px, -9px) scale(0.75) !important',
+                        backgroundColor: 'background.paper',
+                        px: 0.8,
+                        borderRadius: 1,
+                        fontWeight: 600,
+                      },
+                    }}
+                  />
+                  <TextField
+                    label="End Date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                    size="small"
+                    sx={{
+                      '& .MuiInputLabel-root': {
+                        transform: 'translate(14px, -9px) scale(0.75) !important',
+                        backgroundColor: 'background.paper',
+                        px: 0.8,
+                        borderRadius: 1,
+                        fontWeight: 600,
+                      },
+                    }}
+                  />
+                  <Button type="submit" variant="contained" size="medium" sx={{ px: 4, whiteSpace: 'nowrap', minWidth: 130 }}>
+                    Apply Filter
+                  </Button>
+                  <Button variant="outlined" color="inherit" onClick={() => { setActivePreset(''); setStartDate(''); setEndDate(''); loadReport() }} sx={{ whiteSpace: 'nowrap' }}>
+                    Reset
+                  </Button>
+                </Stack>
+              </Box>
+            </Stack>
           </CardContent>
         </Card>
 
@@ -157,7 +222,7 @@ export default function ReportsPage() {
                       <TrendingUpIcon color="primary" />
                     </Stack>
                     <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                      ${Number(report.sales?.revenue || 0).toFixed(2)}
+                      {formatCurrency(report.sales?.revenue || 0, displayCurrency, true)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                       {report.sales?.invoice_count || 0} Confirmed Invoices
@@ -174,7 +239,7 @@ export default function ReportsPage() {
                       <AccountBalanceWalletIcon color="success" />
                     </Stack>
                     <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
-                      ${Number(report.sales?.paid_revenue || 0).toFixed(2)}
+                      {formatCurrency(report.sales?.paid_revenue || 0, displayCurrency, true)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                       Collected Funds
@@ -191,7 +256,7 @@ export default function ReportsPage() {
                       <Inventory2Icon color="warning" />
                     </Stack>
                     <Typography variant="h4" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#fbbf24' : '#d97706' }}>
-                      ${Number(report.inventory?.total_valuation || 0).toFixed(2)}
+                      {formatCurrency(report.inventory?.total_valuation || 0, displayCurrency, true)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                       {report.inventory?.items || 0} Products ({report.inventory?.low_stock || 0} Low Stock)
@@ -242,12 +307,10 @@ export default function ReportsPage() {
                 ) : (
                   <Box sx={{ width: '100%', overflowX: 'auto' }}>
                     <svg width="100%" height="220" viewBox={`0 0 ${Math.max(600, trendData.length * 70)} 220`} style={{ minWidth: 600 }}>
-                      {/* Grid lines */}
                       <line x1="40" y1="20" x2="100%" y2="20" stroke={theme.palette.divider} strokeDasharray="4" />
                       <line x1="40" y1="90" x2="100%" y2="90" stroke={theme.palette.divider} strokeDasharray="4" />
                       <line x1="40" y1="160" x2="100%" y2="160" stroke={theme.palette.divider} strokeDasharray="4" />
 
-                      {/* Bar & line points */}
                       {trendData.map((item, index) => {
                         const x = 70 + index * 65
                         const barHeight = Math.max(8, (item.revenue / maxRevenue) * 140)
@@ -256,7 +319,6 @@ export default function ReportsPage() {
 
                         return (
                           <g key={index}>
-                            {/* Full-height hit target area for reliable mouse hover */}
                             <rect
                               x={x - 25}
                               y={10}
@@ -300,6 +362,85 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
+            {/* Product Category Share & Top Buyers Grid */}
+            <Grid container spacing={3}>
+              {/* Category Breakdown Card */}
+              <Grid item xs={12} md={6}>
+                <Card sx={{ height: '100%', borderRadius: 3, boxShadow: '0 8px 32px rgba(15,23,42,0.06)' }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                      <CategoryIcon color="primary" />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>Category Revenue Distribution</Typography>
+                    </Stack>
+
+                    {categoryBreakdown.length === 0 ? (
+                      <Typography color="text.secondary">No category distribution data recorded.</Typography>
+                    ) : (
+                      <Stack spacing={2.5}>
+                        {categoryBreakdown.map((cat, idx) => (
+                          <Box key={idx}>
+                            <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                              <Typography variant="subtitle2" fontWeight={700}>{cat.category}</Typography>
+                              <Typography variant="subtitle2" color="primary.main" fontWeight={700}>
+                                {formatCurrency(cat.revenue, displayCurrency, true)} ({cat.share_pct}%)
+                              </Typography>
+                            </Stack>
+                            <LinearProgress
+                              variant="determinate"
+                              value={cat.share_pct}
+                              color={idx % 2 === 0 ? 'primary' : 'secondary'}
+                              sx={{ height: 8, borderRadius: 4 }}
+                            />
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Top Buyers Leaderboard Card */}
+              <Grid item xs={12} md={6}>
+                <Card sx={{ height: '100%', borderRadius: 3, boxShadow: '0 8px 32px rgba(15,23,42,0.06)' }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                      <EmojiEventsIcon sx={{ color: '#f59e0b' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>Top Buyers Leaderboard</Typography>
+                    </Stack>
+
+                    {topCustomers.length === 0 ? (
+                      <Typography color="text.secondary">No customer sales recorded in this period.</Typography>
+                    ) : (
+                      <Stack spacing={1.5}>
+                        {topCustomers.map((cust, idx) => (
+                          <Paper key={idx} variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Stack direction="row" spacing={1.5} alignItems="center">
+                              <Chip
+                                label={`#${idx + 1}`}
+                                size="small"
+                                color={idx === 0 ? 'warning' : 'default'}
+                                sx={{ fontWeight: 800, minWidth: 32 }}
+                              />
+                              <Box>
+                                <Typography variant="subtitle2" fontWeight={700}>{cust.name}</Typography>
+                                <Typography variant="caption" color="text.secondary">{cust.invoice_count} confirmed orders</Typography>
+                              </Box>
+                            </Stack>
+                            <Chip
+                              label={formatCurrency(cust.total_spent, displayCurrency, true)}
+                              color="success"
+                              variant="outlined"
+                              sx={{ fontWeight: 800 }}
+                            />
+                          </Paper>
+                        ))}
+                      </Stack>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
             {/* Payment Collections Breakdown */}
             <Card sx={{ borderRadius: 3 }}>
               <CardContent sx={{ p: 3 }}>
@@ -309,7 +450,7 @@ export default function ReportsPage() {
                     <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>Paid Revenue Collections</Typography>
                       <Typography variant="body2" color="success.main" sx={{ fontWeight: 700 }}>
-                        ${Number(report.sales?.paid_revenue || 0).toFixed(2)}
+                        {formatCurrency(report.sales?.paid_revenue || 0, displayCurrency, true)}
                       </Typography>
                     </Stack>
                     <LinearProgress
@@ -324,7 +465,7 @@ export default function ReportsPage() {
                     <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>Outstanding / Overdue Collections</Typography>
                       <Typography variant="body2" color="warning.main" sx={{ fontWeight: 700 }}>
-                        ${Number(report.sales?.unpaid_revenue || 0).toFixed(2)}
+                        {formatCurrency(report.sales?.unpaid_revenue || 0, displayCurrency, true)}
                       </Typography>
                     </Stack>
                     <LinearProgress
