@@ -314,6 +314,7 @@ class AuditLog(models.Model):
     action_type = models.CharField(max_length=50, choices=ACTION_TYPES, default='GENERAL')
     description = models.TextField(blank=True)
     ip_address = models.CharField(max_length=45, blank=True)
+    user_agent = models.TextField(blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     objects = CompanyScopedManager()
@@ -327,12 +328,21 @@ class AuditLog(models.Model):
         if not user or not user.is_authenticated:
             return None
         company = getattr(user, 'company', None)
-        ip = request.META.get('REMOTE_ADDR', '') if request else ''
+        ip = ''
+        ua = ''
+        if request:
+            x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded:
+                ip = x_forwarded.split(',')[0].strip()
+            else:
+                ip = request.META.get('REMOTE_ADDR', '')
+            ua = request.META.get('HTTP_USER_AGENT', '')
         return cls.objects.create(
             company=company,
             user=user,
             action=action,
             action_type=action_type,
             description=description,
-            ip_address=ip
+            ip_address=ip,
+            user_agent=ua
         )

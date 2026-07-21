@@ -315,5 +315,5 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuditLog
-        fields = ['id', 'user_email', 'user_name', 'action', 'action_type', 'description', 'ip_address', 'timestamp']
+        fields = ['id', 'user_email', 'user_name', 'action', 'action_type', 'description', 'ip_address', 'user_agent', 'timestamp']
         read_only_fields = fields

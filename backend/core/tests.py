@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import AIChatLog, Company, Customer, Employee, Invoice, InvoiceItem, Notification, Product, User
+from core.models import AIChatLog, AuditLog, Company, Customer, Employee, Invoice, InvoiceItem, Notification, Product, User
 from django.utils import timezone
 from core.serializers import RegisterSerializer
 
@@ -231,6 +231,15 @@ class AuthAndInvoiceTests(TestCase):
         res = self.client.post('/api/suppliers/bulk_import/', {'file': file_obj}, format='multipart')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['imported_count'], 2)
+
+    def test_audit_log_filters_and_export(self):
+        AuditLog.log(self.client, "Security Check Action", action_type="COMPANY_UPDATED", description="Updated company profile settings")
+        res = self.client.get('/api/audit-logs/?search=Security')
+        self.assertEqual(res.status_code, 200)
+
+        csv_res = self.client.get('/api/audit-logs/export_csv/')
+        self.assertEqual(csv_res.status_code, 200)
+        self.assertEqual(csv_res['Content-Type'], 'text/csv')
 
 
 

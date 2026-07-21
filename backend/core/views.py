@@ -1561,10 +1561,54 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         if company is None:
             return AuditLog.objects.none()
         qs = AuditLog.objects.filter(company=company)
+        
+        search = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if search:
+            qs = qs.filter(
+                Q(action__icontains=search) |
+                Q(description__icontains=search) |
+                Q(user__name__icontains=search) |
+                Q(user__email__icontains=search) |
+                Q(ip_address__icontains=search)
+            )
+            
         action_type = self.request.query_params.get('action_type')
         if action_type:
             qs = qs.filter(action_type=action_type)
+
+        start_date = self.request.query_params.get('start_date')
+        if start_date:
+            qs = qs.filter(timestamp__date__gte=start_date)
+
+        end_date = self.request.query_params.get('end_date')
+        if end_date:
+            qs = qs.filter(timestamp__date__lte=end_date)
+
         return qs
+
+    @action(detail=False, methods=['get'])
+    def export_csv(self, request):
+        logs = self.get_queryset()
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(['SECURITY AUDIT LOG COMPLIANCE REPORT'])
+        writer.writerow(['ID', 'Timestamp', 'User Name', 'User Email', 'Action Type', 'Action', 'Description', 'IP Address', 'User Agent'])
+        for item in logs:
+            writer.writerow([
+                item.id,
+                item.timestamp.isoformat(),
+                item.user.name if item.user else 'System',
+                item.user.email if item.user else '—',
+                item.action_type,
+                item.action,
+                item.description,
+                item.ip_address,
+                item.user_agent
+            ])
+
+        response = HttpResponse(buffer.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="security_audit_log.csv"'
+        return response
 
 
 class HealthCheckView(views.APIView):
