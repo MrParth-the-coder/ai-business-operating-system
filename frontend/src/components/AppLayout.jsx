@@ -13,8 +13,15 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import NotificationsIcon from '@mui/icons-material/Notifications'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
+import BadgeIcon from '@mui/icons-material/Badge'
+import HistoryIcon from '@mui/icons-material/History'
+import SearchIcon from '@mui/icons-material/Search'
+import SettingsIcon from '@mui/icons-material/Settings'
+import Chip from '@mui/material/Chip'
 import api, { logout as apiLogout, clearTokens } from '../lib/auth'
 import { ColorModeContext } from '../theme'
+import GlobalSearchModal from './GlobalSearchModal'
+import SystemSettingsModal from './SystemSettingsModal'
 
 const drawerWidth = 260
 const baseNavLinks = [
@@ -26,6 +33,8 @@ const baseNavLinks = [
   { path: '/reports', label: 'Reports', icon: <AssessmentIcon />, permission: 'reports', ownerOnly: false },
   { path: '/notifications', label: 'Notifications', icon: <NotificationsIcon />, permission: 'notifications', ownerOnly: false },
   { path: '/predictions', label: 'Predictions', icon: <AutoAwesomeIcon />, permission: 'predictions', ownerOnly: false },
+  { path: '/employees', label: 'Employees', icon: <BadgeIcon />, permission: 'employees', ownerOnly: false },
+  { path: '/activity-log', label: 'Activity Log', icon: <HistoryIcon />, permission: null, ownerOnly: false },
   { path: '/company-setup', label: 'Company Setup', icon: <BusinessIcon />, permission: null, ownerOnly: true },
 ]
 
@@ -37,6 +46,19 @@ export default function AppLayout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [navLinks, setNavLinks] = useState(baseNavLinks)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   useEffect(() => {
     const loadPermissions = async () => {
@@ -70,7 +92,7 @@ export default function AppLayout({ children }) {
   }
 
   const drawer = (
-    <Box sx={{ height: '100%', background: 'linear-gradient(180deg, rgba(79,70,229,0.08) 0%, rgba(255,255,255,0) 100%)' }}>
+    <Box sx={{ height: '100%', background: theme.palette.mode === 'dark' ? 'linear-gradient(180deg, rgba(30,41,59,0.2) 0%, rgba(15,23,42,0) 100%)' : 'linear-gradient(180deg, rgba(79,70,229,0.08) 0%, rgba(255,255,255,0) 100%)' }}>
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 2, py: 3 }}>
         <Avatar sx={{ bgcolor: 'primary.main', width: 42, height: 42 }}>A</Avatar>
         <Box>
@@ -96,7 +118,7 @@ export default function AppLayout({ children }) {
                 px: 1.5,
                 py: 1,
                 '&.Mui-selected': {
-                  background: 'linear-gradient(90deg, rgba(79,70,229,0.14) 0%, rgba(79,70,229,0.05) 100%)',
+                  background: theme.palette.mode === 'dark' ? 'rgba(129, 140, 248, 0.18)' : 'linear-gradient(90deg, rgba(79,70,229,0.14) 0%, rgba(79,70,229,0.05) 100%)',
                   color: 'primary.main',
                 },
               }}
@@ -111,7 +133,7 @@ export default function AppLayout({ children }) {
   )
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="fixed" sx={{ zIndex: theme.zIndex.drawer + 1 }}>
         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -127,7 +149,30 @@ export default function AppLayout({ children }) {
               AI BOS
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Button
+              color="inherit"
+              onClick={() => setSearchOpen(true)}
+              startIcon={<SearchIcon />}
+              sx={{
+                bgcolor: 'action.hover',
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 2,
+                textTransform: 'none',
+                border: '1px solid rgba(255,255,255,0.2)',
+                display: { xs: 'none', sm: 'inline-flex' }
+              }}
+            >
+              Search...
+              <Chip label="Ctrl K" size="small" sx={{ ml: 1, height: 18, fontSize: '0.65rem' }} />
+            </Button>
+            <IconButton color="inherit" onClick={() => setSearchOpen(true)} sx={{ display: { xs: 'inline-flex', sm: 'none' } }}>
+              <SearchIcon />
+            </IconButton>
+            <IconButton color="inherit" onClick={() => setSettingsOpen(true)} aria-label="system preferences">
+              <SettingsIcon />
+            </IconButton>
             <IconButton color="inherit" onClick={colorMode.toggleColorMode} aria-label="toggle color mode">
               {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
             </IconButton>
@@ -138,6 +183,9 @@ export default function AppLayout({ children }) {
         </Toolbar>
       </AppBar>
 
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <SystemSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
       <Box component="nav" sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}>
         <Drawer
           variant="temporary"
@@ -146,7 +194,7 @@ export default function AppLayout({ children }) {
           ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid rgba(148,163,184,0.18)' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
           }}
         >
           {drawer}
@@ -155,7 +203,7 @@ export default function AppLayout({ children }) {
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box', mt: 8, borderRight: '1px solid rgba(148,163,184,0.18)' },
+            '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box', mt: 8 },
           }}
           open
         >
@@ -163,7 +211,7 @@ export default function AppLayout({ children }) {
         </Drawer>
       </Box>
 
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, width: { md: `calc(100% - ${drawerWidth}px)` }, background: 'linear-gradient(180deg, rgba(79,70,229,0.03) 0%, rgba(255,255,255,0) 100%)' }}>
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, width: { md: `calc(100% - ${drawerWidth}px)` }, bgcolor: 'background.default' }}>
         <Toolbar />
         {children}
       </Box>

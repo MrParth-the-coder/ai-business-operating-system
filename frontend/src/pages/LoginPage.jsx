@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, CircularProgress, Stack, TextField, Typography } from '@mui/material'
 import { Link, useNavigate } from 'react-router-dom'
 import api, { getAccessToken, setTokens } from '../lib/auth'
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -16,6 +17,8 @@ export default function LoginPage() {
 
   const submit = async (e) => {
     e.preventDefault()
+    setError('')
+    setIsSubmitting(true)
     try {
       const { data } = await api.post('/auth/login/', form)
       setTokens(data)
@@ -26,7 +29,9 @@ export default function LoginPage() {
         navigate('/company-setup')
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed.')
+      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -41,11 +46,27 @@ export default function LoginPage() {
           </Stack>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <Box component="form" onSubmit={submit} sx={{ display: 'grid', gap: 2 }}>
-            <TextField label="Email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <TextField label="Password" type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-            <Button type="submit" variant="contained" size="large">Sign in</Button>
+            <TextField
+              label="Email"
+              type="email"
+              required
+              disabled={isSubmitting}
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+            <TextField
+              label="Password"
+              type="password"
+              required
+              disabled={isSubmitting}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+            <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
+              {isSubmitting ? <CircularProgress size={24} color="inherit" /> : 'Sign in'}
+            </Button>
           </Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
             <Typography variant="body2">
               No account yet? <Link to="/register">Create one</Link>
             </Typography>

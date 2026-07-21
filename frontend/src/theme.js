@@ -15,17 +15,17 @@ export function buildTheme(mode) {
   return createTheme({
     palette: {
       mode,
-      primary: { main: '#4f46e5', light: '#818cf8', dark: '#312e81' },
-      secondary: { main: '#0f766e', light: '#2dd4bf' },
+      primary: { main: isDark ? '#818cf8' : '#4f46e5', light: '#a5b4fc', dark: '#3730a3' },
+      secondary: { main: isDark ? '#2dd4bf' : '#0f766e', light: '#5eead4' },
       background: {
-        default: isDark ? '#020617' : '#f4f7ff',
-        paper: isDark ? '#111827' : '#ffffff',
+        default: isDark ? '#0b0f19' : '#f4f7ff',
+        paper: isDark ? '#151e32' : '#ffffff',
       },
       text: {
-        primary: isDark ? '#f8fafc' : '#0f172a',
-        secondary: isDark ? '#cbd5e1' : '#475569',
+        primary: isDark ? '#f1f5f9' : '#0f172a',
+        secondary: isDark ? '#94a3b8' : '#475569',
       },
-      divider: isDark ? 'rgba(148, 163, 184, 0.22)' : 'rgba(148, 163, 184, 0.2)',
+      divider: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(148, 163, 184, 0.2)',
     },
     shape: { borderRadius: 16 },
     typography: {
@@ -35,6 +35,14 @@ export function buildTheme(mode) {
       h6: { fontWeight: 700 },
     },
     components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            backgroundColor: isDark ? '#0b0f19' : '#f4f7ff',
+            color: isDark ? '#f1f5f9' : '#0f172a',
+          },
+        },
+      },
       MuiButton: {
         styleOverrides: {
           root: {
@@ -46,19 +54,76 @@ export function buildTheme(mode) {
           },
         },
       },
+      MuiPaper: {
+        styleOverrides: {
+          root: {
+            backgroundImage: 'none',
+          },
+        },
+      },
       MuiCard: {
         styleOverrides: {
           root: {
-            boxShadow: isDark ? '0 20px 45px rgba(2, 6, 23, 0.35)' : '0 20px 45px rgba(15, 23, 42, 0.08)',
-            border: isDark ? '1px solid rgba(148, 163, 184, 0.16)' : '1px solid rgba(148, 163, 184, 0.2)',
+            backgroundColor: isDark ? '#151e32' : '#ffffff',
+            backgroundImage: 'none',
+            boxShadow: isDark ? '0 10px 30px rgba(0, 0, 0, 0.4)' : '0 20px 45px rgba(15, 23, 42, 0.08)',
+            border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(148, 163, 184, 0.2)',
+          },
+        },
+      },
+      MuiDialog: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+            backgroundImage: 'none',
+          },
+        },
+      },
+      MuiTableCell: {
+        styleOverrides: {
+          root: {
+            borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(226, 232, 240, 0.8)',
+            color: isDark ? '#f1f5f9' : '#0f172a',
+          },
+          head: {
+            backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+            color: isDark ? '#94a3b8' : '#475569',
+            fontWeight: 700,
           },
         },
       },
       MuiAppBar: {
         styleOverrides: {
           root: {
-            background: isDark ? 'linear-gradient(135deg, #0f172a 0%, #111827 100%)' : 'linear-gradient(135deg, #312e81 0%, #4f46e5 100%)',
-            boxShadow: isDark ? '0 12px 30px rgba(2, 6, 23, 0.35)' : '0 12px 30px rgba(79, 70, 229, 0.2)',
+            background: isDark ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #312e81 0%, #4f46e5 100%)',
+            boxShadow: isDark ? '0 12px 30px rgba(0, 0, 0, 0.5)' : '0 12px 30px rgba(79, 70, 229, 0.2)',
+          },
+        },
+      },
+      MuiDrawer: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+            borderRight: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(226, 232, 240, 0.8)',
+          },
+        },
+      },
+      MuiInputLabel: {
+        styleOverrides: {
+          shrink: {
+            backgroundColor: isDark ? '#151e32' : '#ffffff',
+            padding: '0 6px',
+            borderRadius: '4px',
+            fontWeight: 600,
+          },
+        },
+      },
+      MuiTextField: {
+        styleOverrides: {
+          root: {
+            '& label': {
+              color: isDark ? '#94a3b8' : undefined,
+            },
           },
         },
       },

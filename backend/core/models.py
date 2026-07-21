@@ -142,6 +142,8 @@ class Product(SoftDeleteModel):
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     stock_qty = models.PositiveIntegerField(default=0)
     low_stock_threshold = models.PositiveIntegerField(default=10)
+    image = models.ImageField(upload_to='products/', blank=True, null=True)
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -207,12 +209,19 @@ class Invoice(models.Model):
         ('confirmed', 'Confirmed'),
     ]
 
+    PAYMENT_STATUS_CHOICES = [
+        ('unpaid', 'Unpaid'),
+        ('paid', 'Paid'),
+        ('overdue', 'Overdue'),
+    ]
+
     company = models.ForeignKey(Company, related_name='invoices', on_delete=models.CASCADE)
     customer = models.ForeignKey(Customer, related_name='invoices', on_delete=models.PROTECT)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -283,9 +292,44 @@ class MLPrediction(models.Model):
 
 
 class AuditLog(models.Model):
+    ACTION_TYPES = [
+        ('PRODUCT_CREATED', 'Product Created'),
+        ('PRODUCT_RESTOCKED', 'Product Restocked'),
+        ('CUSTOMER_CREATED', 'Customer Created'),
+        ('SUPPLIER_CREATED', 'Supplier Created'),
+        ('INVOICE_CREATED', 'Invoice Created'),
+        ('INVOICE_STATUS', 'Invoice Status Updated'),
+        ('EMPLOYEE_ADDED', 'Employee Added'),
+        ('BULK_IMPORT', 'Bulk Import Executed'),
+        ('COMPANY_UPDATED', 'Company Details Updated'),
+        ('GENERAL', 'General Event'),
+    ]
+
+    company = models.ForeignKey(Company, related_name='audit_logs', on_delete=models.CASCADE, null=True, blank=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='audit_logs', on_delete=models.CASCADE)
     action = models.CharField(max_length=200)
+    action_type = models.CharField(max_length=50, choices=ACTION_TYPES, default='GENERAL')
+    description = models.TextField(blank=True)
+    ip_address = models.CharField(max_length=45, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+
+    objects = CompanyScopedManager()
 
     class Meta:
         ordering = ['-timestamp']
+
+    @classmethod
+    def log(cls, request, action, action_type='GENERAL', description=''):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return None
+        company = getattr(user, 'company', None)
+        ip = request.META.get('REMOTE_ADDR', '') if request else ''
+        return cls.objects.create(
+            company=company,
+            user=user,
+            action=action,
+            action_type=action_type,
+            description=description,
+            ip_address=ip
+        )

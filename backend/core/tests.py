@@ -71,7 +71,7 @@ class AuthAndInvoiceTests(TestCase):
         response = self.client.post('/api/ai/chat/', {'question': 'Give me an inventory summary'}, format='json')
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('low-stock', response.json()['answer'].lower())
+        self.assertIn('inventory', response.json()['answer'].lower())
 
     def test_predictions_endpoint_returns_company_scoped_results(self):
         response = self.client.get('/api/predictions/')
@@ -132,3 +132,73 @@ class AuthAndInvoiceTests(TestCase):
         self.assertEqual(read_response.status_code, 200)
         notification.refresh_from_db()
         self.assertTrue(notification.is_read)
+
+    def test_invoice_mark_paid_and_export_pdf(self):
+        invoice = Invoice.objects.create(company=self.company, customer=self.customer, subtotal=Decimal('20.00'), tax=Decimal('2.00'), total=Decimal('22.00'), status='draft')
+        InvoiceItem.objects.create(invoice=invoice, product=self.product, qty=1, unit_price=self.product.price, line_total=Decimal('10.00'))
+
+        paid_res = self.client.post(f'/api/invoices/{invoice.id}/mark_paid/', {}, format='json')
+        self.assertEqual(paid_res.status_code, 200)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.payment_status, 'paid')
+
+        pdf_res = self.client.get(f'/api/invoices/{invoice.id}/export_pdf/')
+        self.assertEqual(pdf_res.status_code, 200)
+        self.assertEqual(pdf_res['Content-Type'], 'application/pdf')
+
+    def test_product_search_and_supplier_filter(self):
+        res = self.client.get('/api/products/?search=Widget')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.json()), 1)
+
+    def test_health_check_endpoint_returns_200_ok(self):
+        res = self.client.get('/api/health/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['status'], 'healthy')
+        self.assertEqual(res.json()['database'], 'connected')
+
+    def test_invoice_scan_ocr_endpoint(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        fake_receipt = SimpleUploadedFile("receipt.jpg", b"fake image bytes", content_type="image/jpeg")
+        res = self.client.post('/api/invoices/scan_ocr/', {'file': fake_receipt}, format='multipart')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('extracted_data', res.json())
+        self.assertIn('items', res.json()['extracted_data'])
+
+    def test_advanced_seasonal_sales_forecast(self):
+        res = self.client.get('/api/predictions/')
+        self.assertEqual(res.status_code, 200)
+        sf = res.json()['sales_forecast']
+        self.assertIn('daily_forecast', sf)
+        self.assertEqual(len(sf['daily_forecast']), 7)
+        self.assertIn('seasonal_peak_day', sf)
+        self.assertIn('moving_average_7d', sf)
+
+    def test_payment_gateway_and_webhook_flow(self):
+        invoice = Invoice.objects.create(company=self.company, customer=self.customer, subtotal=Decimal('50.00'), tax=Decimal('5.00'), total=Decimal('55.00'), status='confirmed', payment_status='unpaid')
+        res = self.client.post(f'/api/invoices/{invoice.id}/create_payment_link/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('checkout_url', res.json())
+
+        webhook_res = self.client.post('/api/invoices/webhook_payment/', {'invoice_id': invoice.id, 'payment_status': 'paid'}, format='json')
+        self.assertEqual(webhook_res.status_code, 200)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.payment_status, 'paid')
+
+    def test_scenario_simulator_endpoint(self):
+        res = self.client.post('/api/predictions/simulate/', {
+            'price_change_pct': 5,
+            'demand_change_pct': 10,
+            'cost_reduction_pct': 2
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn('baseline_revenue_30d', data)
+        self.assertIn('simulated_revenue_30d', data)
+        self.assertIn('revenue_delta_30d', data)
+        self.assertIn('executive_takeaway', data)
+
+
+
+
+

@@ -110,7 +110,7 @@ export default function CompanyDashboardPage() {
 
         {summary ? (
           <>
-            <Card sx={{ mb: 3, background: 'linear-gradient(135deg, rgba(79,70,229,0.12) 0%, rgba(255,255,255,0.01) 100%)' }}>
+            <Card sx={{ mb: 3 }}>
               <CardContent>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
                   <Box>
@@ -128,7 +128,7 @@ export default function CompanyDashboardPage() {
             <Grid container spacing={2}>
               {widgets.map(([label, value]) => (
                 <Grid item xs={12} sm={6} md={3} key={label}>
-                  <Card sx={{ height: '100%', background: 'linear-gradient(135deg, rgba(79,70,229,0.08) 0%, rgba(255,255,255,0.01) 100%)' }}>
+                  <Card sx={{ height: '100%' }}>
                     <CardContent>
                       <Typography color="text.secondary" variant="body2">{label}</Typography>
                       <Typography variant="h4" sx={{ mt: 1, fontWeight: 700 }}>{value ?? 0}</Typography>
@@ -138,37 +138,135 @@ export default function CompanyDashboardPage() {
               ))}
             </Grid>
 
-            <Card sx={{ mt: 3 }}>
-              <CardContent>
+            {/* Low Stock Warning Banner */}
+            {summary.low_stock_items && summary.low_stock_items.length > 0 && (
+              <Card sx={{ mt: 3, borderLeft: '6px solid #f59e0b', bgcolor: 'rgba(245, 158, 11, 0.05)' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        ⚠️ Low Stock Warning ({summary.low_stock_items.length} items require restock)
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {summary.low_stock_items.map((item) => `${item.name} (${item.stock_qty} left)`).join(', ')}
+                      </Typography>
+                    </Box>
+                    <Button component={Link} to="/products" variant="contained" color="warning" size="small">
+                      Manage Stock
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recent Invoices & Quick Activity */}
+            {summary.recent_invoices && summary.recent_invoices.length > 0 && (
+              <Card sx={{ mt: 3 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Recent Invoices
+                    </Typography>
+                    <Button component={Link} to="/invoices" size="small">
+                      View All Invoices
+                    </Button>
+                  </Stack>
+
+                  <Grid container spacing={2}>
+                    {summary.recent_invoices.map((inv) => (
+                      <Grid item xs={12} sm={6} md={3} key={inv.id}>
+                        <Card variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                          <Stack spacing={1}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                              {inv.customer_name}
+                            </Typography>
+                            <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>
+                              ${inv.total.toFixed(2)}
+                            </Typography>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Chip
+                                label={inv.payment_status || 'unpaid'}
+                                size="small"
+                                color={inv.payment_status === 'paid' ? 'success' : inv.payment_status === 'overdue' ? 'error' : 'warning'}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(inv.created_at).toLocaleDateString()}
+                              </Typography>
+                            </Stack>
+                          </Stack>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card sx={{ mt: 3, borderRadius: 3, boxShadow: '0 8px 32px rgba(15,23,42,0.06)' }}>
+              <CardContent sx={{ p: 3 }}>
                 <Stack spacing={2}>
                   <Box>
-                    <Typography variant="h6" gutterBottom>AI assistant</Typography>
-                    <Typography color="text.secondary">Ask about sales, inventory, or customer activity and get a company-specific summary.</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>🤖 AI Business Assistant</Typography>
+                    <Typography color="text.secondary">Ask multi-turn questions about revenue, inventory velocity, or customer trends for tailored executive insights.</Typography>
                   </Box>
+
+                  {/* Suggested Question Chips */}
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ gap: 1 }}>
+                    {[
+                      '📈 How are my sales doing?',
+                      '📦 Check low stock alerts',
+                      '💰 What is my unpaid invoice balance?',
+                      '👥 Summarize customer activity'
+                    ].map((prompt, idx) => (
+                      <Chip
+                        key={idx}
+                        label={prompt}
+                        onClick={() => {
+                          setQuestion(prompt.replace(/^[^\w]+/, '').trim())
+                        }}
+                        variant="outlined"
+                        color="primary"
+                        clickable
+                        size="small"
+                      />
+                    ))}
+                  </Stack>
+
                   <Box component="form" onSubmit={handleAssistantSubmit}>
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
                       <TextField
                         fullWidth
                         value={question}
                         onChange={(event) => setQuestion(event.target.value)}
-                        placeholder="Example: How are my sales doing?"
+                        placeholder="Type any question about your business operations..."
                         size="small"
                       />
-                      <Button type="submit" variant="contained" disabled={isAssistantLoading}>
-                        {isAssistantLoading ? 'Thinking…' : 'Ask'}
+                      <Button type="submit" variant="contained" disabled={isAssistantLoading} sx={{ minWidth: 100 }}>
+                        {isAssistantLoading ? 'Thinking…' : 'Ask AI'}
                       </Button>
                     </Stack>
                   </Box>
+
                   {assistantReply && (
-                    <Alert severity="info">{assistantReply}</Alert>
+                    <Alert severity="info" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                      <Typography variant="body2" component="div" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {assistantReply}
+                      </Typography>
+                    </Alert>
                   )}
+
                   {assistantHistory.length > 0 && (
-                    <Stack spacing={1}>
+                    <Stack spacing={1.5} sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={700}>RECENT CONVERSATION LOG</Typography>
                       {assistantHistory.map((item) => (
-                        <Card key={item.id} variant="outlined">
-                          <CardContent>
-                            <Typography variant="subtitle2">You: {item.question}</Typography>
-                            <Typography color="text.secondary" sx={{ mt: 0.5 }}>Assistant: {item.answer}</Typography>
+                        <Card key={item.id} variant="outlined" sx={{ borderRadius: 2, bgcolor: 'background.default' }}>
+                          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                            <Typography variant="subtitle2" color="primary.main" fontWeight={700}>
+                              You: {item.question}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                              {item.answer}
+                            </Typography>
                           </CardContent>
                         </Card>
                       ))}

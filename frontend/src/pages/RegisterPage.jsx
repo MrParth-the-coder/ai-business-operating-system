@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, CircularProgress, Stack, TextField, Typography } from '@mui/material'
 import { Link, useNavigate } from 'react-router-dom'
 import api, { getAccessToken, setTokens } from '../lib/auth'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', name: '', phone: '', password: '', password_confirm: '' })
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function RegisterPage() {
       return
     }
 
+    setIsSubmitting(true)
     try {
       await api.post('/auth/register/', form)
       const { data } = await api.post('/auth/login/', { email: form.email, password: form.password })
@@ -57,6 +59,8 @@ export default function RegisterPage() {
       } else {
         setError('Registration failed.')
       }
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -71,14 +75,48 @@ export default function RegisterPage() {
           </Stack>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <Box component="form" onSubmit={submit} sx={{ display: 'grid', gap: 2 }}>
-            <TextField label="Email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <TextField label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <TextField label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            <TextField label="Password" type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-            <TextField label="Confirm Password" type="password" required value={form.password_confirm} onChange={(e) => setForm({ ...form, password_confirm: e.target.value })} />
-            <Button type="submit" variant="contained" size="large">Create account</Button>
+            <TextField
+              label="Email"
+              type="email"
+              required
+              disabled={isSubmitting}
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+            <TextField
+              label="Name"
+              required
+              disabled={isSubmitting}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <TextField
+              label="Phone"
+              disabled={isSubmitting}
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+            <TextField
+              label="Password"
+              type="password"
+              required
+              disabled={isSubmitting}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+            <TextField
+              label="Confirm Password"
+              type="password"
+              required
+              disabled={isSubmitting}
+              value={form.password_confirm}
+              onChange={(e) => setForm({ ...form, password_confirm: e.target.value })}
+            />
+            <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
+              {isSubmitting ? <CircularProgress size={24} color="inherit" /> : 'Create account'}
+            </Button>
           </Box>
-          <Typography variant="body2" sx={{ mt: 2 }}>
+          <Typography variant="body2" sx={{ mt: 3 }}>
             Already have an account? <Link to="/login">Log in</Link>
           </Typography>
         </CardContent>

@@ -7,13 +7,16 @@ from rest_framework.routers import DefaultRouter
 
 from core.views import (
     AIChatView,
+    AuditLogViewSet,
     CompanyCreateView,
     CompanyMeView,
+    CompanyBackupView,
     CustomerViewSet,
     DashboardView,
     EmailVerificationConfirmView,
     EmailVerificationRequestView,
     EmployeeViewSet,
+    HealthCheckView,
     InvoiceViewSet,
     LoginView,
     LogoutView,
@@ -25,6 +28,7 @@ from core.views import (
     RefreshView,
     RegisterView,
     ReportsView,
+    ScenarioSimulatorView,
     SupplierViewSet,
 )
 
@@ -32,6 +36,7 @@ from core.views import (
 @permission_classes([AllowAny])
 def api_root(request, format=None):
     return Response({
+        'health': reverse('health', request=request, format=format),
         'register': reverse('register', request=request, format=format),
         'login': reverse('login', request=request, format=format),
         'refresh': reverse('refresh', request=request, format=format),
@@ -41,11 +46,13 @@ def api_root(request, format=None):
         'dashboard': reverse('dashboard', request=request, format=format),
         'ai-chat': reverse('ai-chat', request=request, format=format),
         'predictions': reverse('predictions', request=request, format=format),
+        'predictions-simulate': reverse('predictions-simulate', request=request, format=format),
         'products': reverse('products-list', request=request, format=format),
         'customers': reverse('customers-list', request=request, format=format),
         'suppliers': reverse('suppliers-list', request=request, format=format),
         'employees': reverse('employees-list', request=request, format=format),
         'invoices': reverse('invoices-list', request=request, format=format),
+        'audit-logs': reverse('audit-logs-list', request=request, format=format),
     })
 
 router = DefaultRouter()
@@ -54,9 +61,11 @@ router.register(r'customers', CustomerViewSet, basename='customers')
 router.register(r'suppliers', SupplierViewSet, basename='suppliers')
 router.register(r'employees', EmployeeViewSet, basename='employees')
 router.register(r'invoices', InvoiceViewSet, basename='invoices')
+router.register(r'audit-logs', AuditLogViewSet, basename='audit-logs')
 
 urlpatterns = [
     path('', api_root, name='api-root'),
+    path('health/', HealthCheckView.as_view(), name='health'),
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', RefreshView.as_view(), name='refresh'),
@@ -67,11 +76,13 @@ urlpatterns = [
     path('auth/verify-email/confirm/', EmailVerificationConfirmView.as_view(), name='email-verify-confirm'),
     path('companies/', CompanyCreateView.as_view(), name='company-create'),
     path('companies/me/', CompanyMeView.as_view(), name='company-me'),
+    path('companies/export-backup/', CompanyBackupView.as_view(), name='company-export-backup'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('ai/chat/', AIChatView.as_view(), name='ai-chat'),
     path('reports/', ReportsView.as_view(), name='reports'),
     path('notifications/', NotificationsView.as_view(), name='notifications'),
     path('predictions/', PredictionsView.as_view(), name='predictions'),
+    path('predictions/simulate/', ScenarioSimulatorView.as_view(), name='predictions-simulate'),
 ]
 
 urlpatterns += router.urls

@@ -15,6 +15,8 @@ import InvoicesPage from './pages/InvoicesPage'
 import ReportsPage from './pages/ReportsPage'
 import NotificationsPage from './pages/NotificationsPage'
 import PredictionsPage from './pages/PredictionsPage'
+import EmployeesPage from './pages/EmployeesPage'
+import ActivityLogPage from './pages/ActivityLogPage'
 import api, { getAccessToken } from './lib/auth'
 import { ColorModeContext, buildTheme, getInitialThemeMode } from './theme'
 
@@ -122,6 +124,8 @@ export default function App() {
           <Route path="/reports" element={<ProtectedRoute requiredPermission="reports"><ReportsPage /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute requiredPermission="notifications"><NotificationsPage /></ProtectedRoute>} />
           <Route path="/predictions" element={<ProtectedRoute requiredPermission="predictions"><PredictionsPage /></ProtectedRoute>} />
+          <Route path="/employees" element={<ProtectedRoute requiredPermission="employees"><EmployeesPage /></ProtectedRoute>} />
+          <Route path="/activity-log" element={<ProtectedRoute><ActivityLogPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ThemeProvider>

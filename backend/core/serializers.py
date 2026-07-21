@@ -11,7 +11,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from core.models import Company, Customer, Employee, Invoice, InvoiceItem, Product, Supplier
+from core.models import AuditLog, Company, Customer, Employee, Invoice, InvoiceItem, Product, Supplier
 
 User = get_user_model()
 
@@ -182,7 +182,7 @@ class CompanySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['id', 'name', 'category', 'price', 'stock_qty', 'low_stock_threshold', 'is_active']
+        fields = ['id', 'name', 'category', 'price', 'stock_qty', 'low_stock_threshold', 'image', 'supplier', 'is_active']
 
     def validate_stock_qty(self, value):
         if value < 0:
@@ -211,22 +211,56 @@ class SupplierSerializer(serializers.ModelSerializer):
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(write_only=True, required=True)
-    password = serializers.CharField(write_only=True, required=True)
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    name = serializers.CharField(source='user.name', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+    role = serializers.CharField(source='user.role', read_only=True)
 
     class Meta:
         model = Employee
-        fields = ['id', 'email', 'password', 'assigned_permissions']
+        fields = ['id', 'user_id', 'name', 'email', 'password', 'role', 'assigned_permissions', 'created_at']
+        read_only_fields = ['id', 'user_id', 'created_at']
 
     def create(self, validated_data):
-        user = User.objects.create_user(
-            email=validated_data.pop('email'),
-            password=validated_data.pop('password'),
-            role='employee',
-            name=validated_data.pop('email').split('@')[0],
+        email = validated_data.pop('email')
+        password = validated_data.pop('password', 'DefaultPass123!')
+        company = self.context.get('company')
+        if not company:
+            request = self.context.get('request')
+            if request:
+                company = getattr(request.user, 'owned_company', None)
+                if not company:
+                    employee_prof = getattr(request.user, 'employee_profile', None)
+                    company = getattr(employee_prof, 'company', None)
+
+        user, created = User.objects.get_or_create(
+            email__iexact=email,
+            defaults={
+                'email': email,
+                'name': email.split('@')[0].capitalize(),
+                'role': 'employee',
+            }
         )
-        employee = Employee.objects.create(user=user, company=self.context['request'].user.owned_company, **validated_data)
+        if created or password:
+            user.set_password(password or 'DefaultPass123!')
+            user.role = 'employee'
+            user.save()
+
+        employee = Employee.objects.create(user=user, company=company, **validated_data)
         return employee
+
+    def update(self, instance, validated_data):
+        if 'email' in validated_data:
+            email = validated_data.pop('email')
+            instance.user.email = email
+            instance.user.save(update_fields=['email'])
+        if 'password' in validated_data and validated_data['password']:
+            instance.user.set_password(validated_data.pop('password'))
+            instance.user.save(update_fields=['password'])
+        instance.assigned_permissions = validated_data.get('assigned_permissions', instance.assigned_permissions)
+        instance.save()
+        return instance
 
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
@@ -240,12 +274,15 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Invoice
-        fields = ['id', 'customer', 'status', 'subtotal', 'tax', 'total', 'created_at', 'items']
+        fields = ['id', 'customer', 'status', 'payment_status', 'subtotal', 'tax', 'total', 'created_at', 'items']
         read_only_fields = ['id', 'status', 'subtotal', 'tax', 'total', 'created_at']
 
     def validate(self, attrs):
         request = self.context['request']
-        company = request.user.owned_company
+        company = getattr(request.user, 'owned_company', None)
+        if not company:
+            employee = getattr(request.user, 'employee_profile', None)
+            company = getattr(employee, 'company', None)
         items = attrs.get('items', [])
         for item in items:
             product = Product.objects.get(id=item['product'].id, company=company)
@@ -255,12 +292,28 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
-        invoice = Invoice.objects.create(company=self.context['request'].user.owned_company, customer=validated_data['customer'], status='draft')
+        request = self.context['request']
+        company = getattr(request.user, 'owned_company', None)
+        if not company:
+            employee = getattr(request.user, 'employee_profile', None)
+            company = getattr(employee, 'company', None)
+
+        invoice = Invoice.objects.create(company=company, customer=validated_data['customer'], status='draft')
         for item_data in items_data:
-            product = Product.objects.get(id=item_data['product'].id, company=self.context['request'].user.owned_company)
+            product = Product.objects.get(id=item_data['product'].id, company=company)
             InvoiceItem.objects.create(invoice=invoice, product=product, qty=item_data['qty'], unit_price=product.price, line_total=product.price * item_data['qty'])
         invoice.subtotal = sum((item.line_total for item in invoice.items.all()), start=0)
         invoice.tax = invoice.subtotal * Decimal('0.1')
         invoice.total = invoice.subtotal + invoice.tax
         invoice.save()
         return invoice
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    user_email = serializers.ReadOnlyField(source='user.email')
+    user_name = serializers.ReadOnlyField(source='user.name')
+
+    class Meta:
+        model = AuditLog
+        fields = ['id', 'user_email', 'user_name', 'action', 'action_type', 'description', 'ip_address', 'timestamp']
+        read_only_fields = fields
